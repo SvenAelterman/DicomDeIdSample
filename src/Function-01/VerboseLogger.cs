@@ -17,7 +17,7 @@ namespace Function_01
 
 		public void Write(string value)
 		{
-			_logger.LogDebug(value);
+			_logger.LogInformation(value);
 		}
 	}
 }
