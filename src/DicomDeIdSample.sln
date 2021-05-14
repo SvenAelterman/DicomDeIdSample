@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31205.134
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Function-01", "Function-01\Function-01.csproj", "{39760CC1-5440-450F-9C5D-0BF203BA5355}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Function-01", "Function-01\Function-01.csproj", "{39760CC1-5440-450F-9C5D-0BF203BA5355}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DicomLib", "DicomLib\DicomLib.csproj", "{BA21F7A4-F749-4B5C-AFB2-CAEC85016AFD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DicomLib", "DicomLib\DicomLib.csproj", "{BA21F7A4-F749-4B5C-AFB2-CAEC85016AFD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleTest", "ConsoleTest\ConsoleTest.csproj", "{AC1F6360-19A8-4A7B-AED5-A5D7D1ABD232}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{BA21F7A4-F749-4B5C-AFB2-CAEC85016AFD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BA21F7A4-F749-4B5C-AFB2-CAEC85016AFD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BA21F7A4-F749-4B5C-AFB2-CAEC85016AFD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AC1F6360-19A8-4A7B-AED5-A5D7D1ABD232}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC1F6360-19A8-4A7B-AED5-A5D7D1ABD232}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC1F6360-19A8-4A7B-AED5-A5D7D1ABD232}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC1F6360-19A8-4A7B-AED5-A5D7D1ABD232}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
