@@ -6,6 +6,11 @@ using System.Linq;
 
 namespace DicomLib
 {
+	/// <summary>
+	/// Implementation of IDicomLib for the UMB NCAA COVID-19 Cardio research project.
+	/// Uses the third-party open source Fellow Oak DICOM (fodicom) library.
+	/// https://github.com/fo-dicom/fo-dicom
+	/// </summary>
 	public class FODicomWrapper : IDicomLib
 	{
 		public Stream RemoveTags(Stream dicom, string replaceValue, IList<string> keepTags,
@@ -15,6 +20,7 @@ namespace DicomLib
 
 			List<DicomTag> Keep = new List<DicomTag>();
 
+			// Process the list of tags to keep passed in as a IList<string> into fodicom objects
 			if (keepTags != null)
 			{
 				foreach (string TagName in keepTags)
@@ -28,22 +34,27 @@ namespace DicomLib
 
 			List<DicomTag> ToUpdate = new List<DicomTag>();
 
+			// Create the list of tags to be updated/replaced/cleared that are "person names"
+			// Deliberately don't include other tags for this sample
 			foreach (var fmi in df.Dataset.Where(ds => ds.ValueRepresentation.Code == "PN"))
 			{
+				// TODO: Text Analytics here
 				if (!Keep.Contains(fmi.Tag))
 				{
 					ToUpdate.Add(fmi.Tag);
 				}
 			}
 
+			// Process each tag
 			foreach (var tag in ToUpdate)
 			{
-				// TODO: Log
+				// TODO: Log original value, etc.
 				df.Dataset.AddOrUpdate(new DicomPersonName(tag, replaceValue));
 			}
 
 			df.Dataset.Validate();
 
+			// This is verbose output only, to validate
 			if (writer != null)
 			{
 				writer.Write("From wrapper");
@@ -66,7 +77,6 @@ namespace DicomLib
 			Stream OutStream = new MemoryStream();
 			df.Save(OutStream);
 
-			//OutStream.Flush();
 			OutStream.Position = 0;
 
 			return OutStream;
