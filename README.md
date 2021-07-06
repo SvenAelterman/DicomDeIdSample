@@ -12,3 +12,4 @@ Pre-reqs: The Azure Storage Emulator
 3. Start the VS debugger for the function project.
 4. Using Storage Explorer, send one or more DICOM files with tags to the source container identified in the code: `dicom-samples-id`.
 5. You should observe output from the Verbose logger in the VS debug window:
+![](./docs/img/VSAzureFunctionDebugWindow.png)
