@@ -41,26 +41,29 @@ namespace Function_01
 				"0010,1010",	// Added to sample, AS
 				"0010,0010",	// Set in sample (study's ID), PN
 				"0010,0020",	// Added to sample, LO
-				"0018,1000",	// Can't add to sample (retired tag, per LEADTOOLS)
+				"0018,1000",	// Add to sample, LO (retired tag, per LEADTOOLS)
 				"0010,21C0",	// Added to sample, US 0001
 				"0008,0080",	// Added to sample, LO
 				"0008,0081",	// Added to sample, ST
 				"0008,1010",	// Added to sample, SH
 				"0008,1070",	// Added to sample, PN
-				"0040,0275",	// Unable to add to sample
-				"FFFE,E000",	// Added to sample, OB ?
 				"0040,0007",	// Added to sample, LO
+				"0040,0275",	// Unable to add to sample
+				// Children of 0040,0275?
+				"FFFE,E000",	// Added to sample, OB ?
 				"FFFE,E00D",	// ?
 				"FFFE,E0DD",	// ?
-				// Tags that might need to be hashed
+				// Tags that need to be hashed
 				"0020,000D",
 				"0020,000E",
-				"0040,1001"
+				"0040,1001",
+				// HACK: To try SQ
+				"0008,9215",
 			};
 
 			IDicomLib lib = new FODicomWrapper();
 
-			// TODO: Hash certain tags if required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
+			// TODO: Hash certain tags as required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
 
 			// TODO: Add patient ID to 0010,0020
 
