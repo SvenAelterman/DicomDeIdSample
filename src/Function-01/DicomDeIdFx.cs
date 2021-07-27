@@ -68,7 +68,8 @@ namespace Function_01
 			string CurrentPatientId = lib.GetPatientId(inStream);
 
 			// Process the tags for anonymization
-			Stream ModifiedStream = lib.ProcessTags(inStream, null, TagProcessList, new VerboseLogger(log));
+			IVerboseWriter writer = new VerboseLogger(log);
+			Stream ModifiedStream = lib.ProcessTags(inStream, null, TagProcessList, writer);
 
 			// TODO: Hash certain tags as required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
 
@@ -80,7 +81,7 @@ namespace Function_01
 			{
 				// TODO: Create a cache?
 				string NewPatientId = ((IdMapEntity)idMapTable.ExecuteAsync(GetStudyId).Result.Result).StudyId;
-				ModifiedStream = lib.SetPatientId(ModifiedStream, NewPatientId);
+				ModifiedStream = lib.SetPatientId(ModifiedStream, NewPatientId, writer);
 			}
 			else
 			{

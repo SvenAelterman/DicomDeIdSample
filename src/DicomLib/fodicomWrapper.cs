@@ -282,7 +282,7 @@ namespace DicomLib
 				return null;
 		}
 
-		public Stream SetPatientId(Stream dicom, string newPatientId)
+		public Stream SetPatientId(Stream dicom, string newPatientId, IVerboseWriter writer)
 		{
 			if (dicom == null) throw new ArgumentNullException(nameof(dicom));
 			if (string.IsNullOrWhiteSpace(newPatientId)) throw new ArgumentException(nameof(newPatientId));
@@ -295,6 +295,9 @@ namespace DicomLib
 			Stream OutStream = new MemoryStream();
 			df.Dataset.Validate();
 			df.Save(OutStream);
+
+			OutputDicomTags(writer, df.Dataset, new List<DicomTag>() { PatientIdTag }, header: "AFTER SETTING ID");
+
 			OutStream.Position = 0;
 
 			return OutStream;

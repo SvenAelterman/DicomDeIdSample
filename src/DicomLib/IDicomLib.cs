@@ -18,6 +18,6 @@ namespace DicomLib
 
 		Stream ProcessTags(Stream dicom, string replaceValue, IList<string> tagsToProcess, IVerboseWriter writer);
 		string GetPatientId(Stream dicom);
-		Stream SetPatientId(Stream dicom, string newPatientId);
+		Stream SetPatientId(Stream dicom, string newPatientId, IVerboseWriter writer);
 	}
 }
