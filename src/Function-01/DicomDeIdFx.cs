@@ -26,10 +26,6 @@ namespace Function_01
 		{
 			log.LogInformation($"C# Blob trigger function processing blob\n\tName:{name}\n\tSize: {inStream.Length} Bytes");
 
-			//IList<string> TagKeepList = new List<string>()
-			//{
-			//	"0010,0020" // Patient ID, keep per Flywheel
-			//};
 			// TODO: Define custom class with tag ID and action ("default", "clear", "hash")?
 			IList<string> TagProcessList = new List<string>()
 			{
@@ -60,7 +56,7 @@ namespace Function_01
 				"0020,000E",
 				"0040,1001",
 				// HACK: To try SQ
-				"0008,9215",
+				//"0008,9215",
 			};
 
 			IDicomLib lib = new FODicomWrapper();
@@ -75,8 +71,8 @@ namespace Function_01
 
 			// Add subject's study ID to 0010,0020
 
-			// TODO: extract institution (partition key for table) from storage account name
-			TableOperation GetStudyId = TableOperation.Retrieve<IdMapEntity>("samples", CurrentPatientId);
+			// TODO: extract institution (partition key for table) from storage account name (last three characters of storage account name)
+			TableOperation GetStudyId = TableOperation.Retrieve<IdMapEntity>("umb", CurrentPatientId);
 			if (GetStudyId != null)
 			{
 				// TODO: Create a cache?
@@ -89,6 +85,7 @@ namespace Function_01
 				log.LogError("Could not retrieve study ID for patient.");
 			}
 
+			// TODO: Modify output path to use study ID instead of name/MRN folder
 			ModifiedStream.CopyTo(outStream);
 		}
 	}
