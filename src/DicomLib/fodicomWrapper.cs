@@ -15,6 +15,8 @@ namespace DicomLib
 	/// </summary>
 	public class FODicomWrapper : IDicomLib
 	{
+		private const string PatientIdTagValue = "0010,0020";
+
 		/// <summary>
 		/// De-identifies the specified DICOM file by replacing the values in the specified tags with the specified value.
 		/// Only tags with non-empty values will be replaced.
@@ -40,6 +42,7 @@ namespace DicomLib
 				Process.Add(DicomTag.Parse(TagName));
 			}
 
+			dicom.Position = 0;
 			DicomFile df = DicomFile.Open(dicom, FileReadOption.ReadAll);
 
 			OutputDicomTags(writer, df.Dataset, Process, "BEFORE VALUES");
@@ -260,6 +263,38 @@ namespace DicomLib
 			Stream OutStream = new MemoryStream();
 			df.Save(OutStream);
 
+			OutStream.Position = 0;
+
+			return OutStream;
+		}
+
+		public string GetPatientId(Stream dicom)
+		{
+			if (dicom == null) throw new ArgumentNullException(nameof(dicom));
+
+			dicom.Position = 0;
+			DicomFile df = DicomFile.Open(dicom, FileReadOption.ReadAll);
+			DicomTag PatientIdTag = DicomTag.Parse(PatientIdTagValue);
+
+			if (df.Dataset.TryGetString(PatientIdTag, out string PatientId))
+				return PatientId;
+			else
+				return null;
+		}
+
+		public Stream SetPatientId(Stream dicom, string newPatientId)
+		{
+			if (dicom == null) throw new ArgumentNullException(nameof(dicom));
+			if (string.IsNullOrWhiteSpace(newPatientId)) throw new ArgumentException(nameof(newPatientId));
+
+			dicom.Position = 0;
+			DicomFile df = DicomFile.Open(dicom, FileReadOption.ReadAll);
+			DicomTag PatientIdTag = DicomTag.Parse(PatientIdTagValue);
+
+			df.Dataset.AddOrUpdate(PatientIdTag, newPatientId);
+			Stream OutStream = new MemoryStream();
+			df.Dataset.Validate();
+			df.Save(OutStream);
 			OutStream.Position = 0;
 
 			return OutStream;

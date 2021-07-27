@@ -1,4 +1,5 @@
 using DicomLib;
+using Microsoft.Azure.Cosmos.Table;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
@@ -20,6 +21,7 @@ namespace Function_01
 			string name,
 			// Write the output to the same filename in a different container in the same storage account
 			[Blob("dicom-samples-deid/{name}", FileAccess.Write, Connection = "sourceBlobConnection")] Stream outStream,
+			[Table("dicomdeid", Connection = "sourceBlobConnection")] CloudTable idMapTable,
 			ILogger log)
 		{
 			log.LogInformation($"C# Blob trigger function processing blob\n\tName:{name}\n\tSize: {inStream.Length} Bytes");
@@ -39,7 +41,7 @@ namespace Function_01
 				"0008,0090",	// Added to sample, PN
 				"0010,0030",	// Added to sample, DA
 				"0010,1010",	// Added to sample, AS
-				"0010,0010",	// Set in sample (study's ID), PN
+				"0010,0010",	// Updated in sample, PN
 				"0010,0020",	// Added to sample, LO
 				"0018,1000",	// Add to sample, LO (retired tag, per LEADTOOLS)
 				"0010,21C0",	// Added to sample, US 0001
@@ -62,12 +64,31 @@ namespace Function_01
 			};
 
 			IDicomLib lib = new FODicomWrapper();
+			// Retrieve the subject's current medical record number before anonymization
+			string CurrentPatientId = lib.GetPatientId(inStream);
+
+			// Process the tags for anonymization
+			Stream ModifiedStream = lib.ProcessTags(inStream, null, TagProcessList, new VerboseLogger(log));
 
 			// TODO: Hash certain tags as required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
 
-			// TODO: Add patient ID to 0010,0020
+			// Add subject's study ID to 0010,0020
 
-			lib.ProcessTags(inStream, null, TagProcessList, new VerboseLogger(log)).CopyTo(outStream);
+			// TODO: extract institution (partition key for table) from storage account name
+			TableOperation GetStudyId = TableOperation.Retrieve<IdMapEntity>("samples", CurrentPatientId);
+			if (GetStudyId != null)
+			{
+				// TODO: Create a cache?
+				string NewPatientId = ((IdMapEntity)idMapTable.ExecuteAsync(GetStudyId).Result.Result).StudyId;
+				ModifiedStream = lib.SetPatientId(ModifiedStream, NewPatientId);
+			}
+			else
+			{
+				// Log error
+				log.LogError("Could not retrieve study ID for patient.");
+			}
+
+			ModifiedStream.CopyTo(outStream);
 		}
 	}
 }
