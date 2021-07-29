@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DicomLib
 {
@@ -19,5 +15,9 @@ namespace DicomLib
 		/// <param name="writer"></param>
 		/// <returns>A new Stream object containing the new DicomFile</returns>
 		Stream RemoveTags(Stream dicom, string replaceValue, IList<string> keepTags, IVerboseWriter writer);
+
+		Stream ProcessTags(Stream dicom, string replaceValue, IList<string> tagsToProcess, IVerboseWriter writer);
+		string GetPatientId(Stream dicom);
+		Stream SetPatientId(Stream dicom, string newPatientId, IVerboseWriter writer);
 	}
 }

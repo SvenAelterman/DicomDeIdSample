@@ -1,9 +1,8 @@
 {
   "IsEncrypted": false,
   "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "AzureWebJobssourceBlobConnection": "UseDevelopmentStorage=true",
-    "sourceBlobConnection": "UseDevelopmentStorage=true",
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=http;AccountName=somclnrschsaeusprodprumd;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10003/somclnrschsaeusprodprumd;QueueEndpoint=http://127.0.0.1:10004/somclnrschsaeusprodprumd;TableEndpoint=http://127.0.0.1:10005/somclnrschsaeusprodprumd;",
+    "sourceBlobConnection": "DefaultEndpointsProtocol=http;AccountName=somclnrschsaeusprodprumd;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10003/somclnrschsaeusprodprumd;QueueEndpoint=http://127.0.0.1:10004/somclnrschsaeusprodprumd;TableEndpoint=http://127.0.0.1:10005/somclnrschsaeusprodprumd;",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet"
   }
 }
