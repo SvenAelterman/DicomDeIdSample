@@ -5,7 +5,7 @@ A sample Azure Function that de-identifies DICOM files by removing tags from new
 This sample uses the [fo-dicom](https://github.com/fo-dicom/fo-dicom) .NET library to process the DICOM files.
 
 ## Running Locally
-Pre-reqs: The Azure Storage Emulator
+Pre-reqs: Azurite or the Azure Storage Emulator (deprecated)
 
 1. Open the solution in Visual Studio (2019 or later).
 2. Ensure the startup project is set to `Function-01`. 
