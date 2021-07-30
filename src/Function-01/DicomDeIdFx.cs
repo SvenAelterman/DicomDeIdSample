@@ -21,6 +21,9 @@ namespace Function_01
 			string name,
 			// Write the output to the same filename in a different container in the same storage account
 			[Blob("dicom-samples-deid/{name}", FileAccess.Write, Connection = "sourceBlobConnection")] Stream outStream,
+			// TODO: Use Event Grid trigger for higher reliability
+			//[EventGridTrigger] EventGridEvent eventGridEvent,
+			//[Blob("{data.url}", FileAccess.Read)] Stream input,
 			[Table("dicomdeid", Connection = "sourceBlobConnection")] CloudTable idMapTable,
 			ILogger log)
 		{
@@ -47,10 +50,29 @@ namespace Function_01
 				"0008,1070",	// Added to sample, PN
 				"0040,0007",	// Added to sample, LO
 				"0040,0275",	// Unable to add to sample
-				// Children of 0040,0275?
-				"FFFE,E000",	// Added to sample, OB ?
-				"FFFE,E00D",	// ?
-				"FFFE,E0DD",	// ?
+				// Updates 2021-07-29
+				"0008,1032",
+				"0008,1048",
+				"0008,1140",
+				"0032,1032",
+				"0032,1064",
+				"0040,0253",
+				"0020,0010",
+				"0008,0023",
+				"0008,0030",
+				"0008,0031",
+				"0008,0021",
+				"0008,0020",
+				"0008,0030",
+				"0008,0031",
+				"0008,0032",
+				"0008,0033",
+				"0020,0010",
+				"0029,1009",
+				"0029,1019",
+				"0040,0244",
+				"0040,0245",
+				"0020,0052",
 				// Tags that need to be hashed
 				"0020,000D",
 				"0020,000E",
@@ -70,7 +92,6 @@ namespace Function_01
 			// TODO: Hash certain tags as required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
 
 			// Add subject's study ID to 0010,0020
-
 			// TODO: extract institution (partition key for table) from storage account name (last three characters of storage account name)
 			TableOperation GetStudyId = TableOperation.Retrieve<IdMapEntity>("umb", CurrentPatientId);
 			if (GetStudyId != null)

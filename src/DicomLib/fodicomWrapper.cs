@@ -49,8 +49,8 @@ namespace DicomLib
 
 			// Must create a list and not IEnumerable (or single statement) because the enumeration will be modified when AddOrUpdate is called
 			IList<DicomItem> ToUpdate = df.Dataset
-				.Where(ds => df.Dataset.GetValueCount(ds.Tag) > 0
-						&& Process.Contains(ds.Tag))
+				.Where(ds => Process.Contains(ds.Tag)
+						&& df.Dataset.GetValueCount(ds.Tag) > 0)
 				.ToList();
 
 			ToUpdate
