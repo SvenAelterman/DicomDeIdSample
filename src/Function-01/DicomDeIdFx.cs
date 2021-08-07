@@ -1,33 +1,48 @@
+using Azure.Storage.Blobs;
 using DicomLib;
 using Microsoft.Azure.Cosmos.Table;
+using Microsoft.Azure.EventGrid.Models;
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Function_01
 {
 	public static class DicomDeIdFx
 	{
 		/// <summary>
-		/// Processes the tags in the DICOM file provided by the BlobTrigger and attempts to remove identifying information.
+		/// Processes the tags in the DICOM file provided by the EventGridTrigger and attempts to remove identifying information.
 		/// </summary>
+		/// <param name="eventGridEvent"></param>
 		/// <param name="inStream">The input DICOM file from the Blob storage.</param>
-		/// <param name="name">The name of the DICOM blob.</param>
 		/// <param name="outStream">The output blob.</param>
+		/// <param name="idMapTable"></param>
 		/// <param name="log"></param>
 		[FunctionName("DicomDeIdFx")]
-		public static void Run([BlobTrigger("dicom-samples-id/{name}", Connection = "sourceBlobConnection")] Stream inStream,
-			string name,
-			// Write the output to the same filename in a different container in the same storage account
-			[Blob("dicom-samples-deid/{name}", FileAccess.Write, Connection = "sourceBlobConnection")] Stream outStream,
-			// TODO: Use Event Grid trigger for higher reliability
-			//[EventGridTrigger] EventGridEvent eventGridEvent,
-			//[Blob("{data.url}", FileAccess.Read)] Stream input,
-			[Table("dicomdeid", Connection = "sourceBlobConnection")] CloudTable idMapTable,
+		public static void Run(
+			[EventGridTrigger] EventGridEvent eventGridEvent,
+			// The Function app will access the source blob referenced by the Event Grid's data.url property using a system managed identity
+			[Blob("{data.url}", FileAccess.Read)] Stream inStream,
+			// The Azure Table where the map between patient medical record number and study ID is stored
+			[Table("dicomdeid", Connection = "sourceConnection")] CloudTable idMapTable,
 			ILogger log)
 		{
-			log.LogInformation($"C# Blob trigger function processing blob\n\tName:{name}\n\tSize: {inStream.Length} Bytes");
+			// TODO: consider using StorageBlobCreatedEventData class
+			string SourceBlobUrl = ((dynamic)eventGridEvent.Data).url;
+			BlobUriBuilder blobUriBuilder = new BlobUriBuilder(new Uri(SourceBlobUrl));
+
+			string SourceBlobPathAndName = blobUriBuilder.BlobName;
+			string StorageAccountName = blobUriBuilder.AccountName;
+			// Extract institution (partition key for table) from storage account name (last three characters of storage account name)
+			string InstitutionId = StorageAccountName.Substring(StorageAccountName.Length - 3, 3);
+
+			log.LogInformation($"C# Event Grid trigger function processing blob\r\n\tName: {SourceBlobPathAndName}\r\n\tSize: {inStream?.Length} Bytes.");
+
+			if (inStream == null) throw new ArgumentNullException(nameof(inStream));
 
 			// TODO: Define custom class with tag ID and action ("default", "clear", "hash")?
 			IList<string> TagProcessList = new List<string>()
@@ -82,32 +97,69 @@ namespace Function_01
 			};
 
 			IDicomLib lib = new FODicomWrapper();
+			IVerboseWriter writer = new VerboseLogger(log);
+
 			// Retrieve the subject's current medical record number before anonymization
 			string CurrentPatientId = lib.GetPatientId(inStream);
+			// Construct query to retrieve the subject's study ID from the Azure Table
+			TableOperation GetStudyId = TableOperation.Retrieve<IdMapEntity>(InstitutionId, CurrentPatientId);
 
-			// Process the tags for anonymization
-			IVerboseWriter writer = new VerboseLogger(log);
-			Stream ModifiedStream = lib.ProcessTags(inStream, null, TagProcessList, writer);
-
-			// TODO: Hash certain tags as required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
-
-			// Add subject's study ID to 0010,0020
-			// TODO: extract institution (partition key for table) from storage account name (last three characters of storage account name)
-			TableOperation GetStudyId = TableOperation.Retrieve<IdMapEntity>("umb", CurrentPatientId);
 			if (GetStudyId != null)
 			{
+				// TODO: Hash certain tags as required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
+
+				// Process the tags for anonymization
+				Stream ModifiedStream = lib.ProcessTags(inStream, null, TagProcessList, writer);
+
+				// Retrieve the subject's study ID
 				// TODO: Create a cache?
 				string NewPatientId = ((IdMapEntity)idMapTable.ExecuteAsync(GetStudyId).Result.Result).StudyId;
+
+				// Pass in the already modified (de-identified) stream to the method to set the patient ID to the study ID
+				// Add subject's study ID to 0010,0020
 				ModifiedStream = lib.SetPatientId(ModifiedStream, NewPatientId, writer);
+
+				string TargetBlobPathAndName = CreateTargetBlobPath(SourceBlobPathAndName, NewPatientId, InstitutionId);
+
+				BlobServiceClient TargetStorageAccount = new BlobServiceClient(Environment.GetEnvironmentVariable("targetBlobConnection"));
+				BlobContainerClient Container = TargetStorageAccount.GetBlobContainerClient(Environment.GetEnvironmentVariable("targetContainerName"));
+
+				Container.CreateIfNotExists();
+
+				BlobClient c = Container.GetBlobClient(TargetBlobPathAndName);
+
+				// TODO: Consider adding metadata for lineage?
+				//BlobUploadOptions opt = new BlobUploadOptions();
+				//opt.Metadata.Add("processed-by", "ms-us-edu-dicomdeid-sample");
+
+				c.Upload(ModifiedStream, overwrite: true);
 			}
 			else
 			{
 				// Log error
 				log.LogError("Could not retrieve study ID for patient.");
 			}
+		}
 
-			// TODO: Modify output path to use study ID instead of name/MRN folder
-			ModifiedStream.CopyTo(outStream);
+		/// <summary>
+		/// Turns the source blob path from
+		/// LAST_INITIAL_AGE/study/series/file001.dcm
+		/// into
+		/// institutionid/patientstudyid/study/series/file001.dcm
+		/// </summary>
+		/// <param name="sourceBlobPath"></param>
+		/// <param name="newPatientId"></param>
+		/// <param name="institutionId"></param>
+		/// <returns></returns>
+		private static string CreateTargetBlobPath(string sourceBlobPath, string newPatientId, string institutionId)
+		{
+			// Site should not be part of this, because the storage accounts indicates the site. In which case we need to add an array element in the front
+			IList<string> SourceSplit = sourceBlobPath.Split('/').ToList();
+			// The first element (first folder) is the subject name, or ID, or ... Replace it with the NewPatientId
+			SourceSplit[0] = newPatientId;
+			// Insert a new folder in front that is the institution ID
+			SourceSplit.Insert(0, institutionId);
+			return string.Join('/', SourceSplit);
 		}
 	}
 }
