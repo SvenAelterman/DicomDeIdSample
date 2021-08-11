@@ -16,6 +16,14 @@ namespace DicomLib
 	public class FODicomWrapper : IDicomLib
 	{
 		private const string PatientIdTagValue = "0010,0020";
+		private readonly IUidMapProvider _uidMapProvider;
+		private readonly string _institutionId;
+
+		public FODicomWrapper(IUidMapProvider uidMapProvider, string institutionId)
+		{
+			_uidMapProvider = uidMapProvider;
+			_institutionId = institutionId;
+		}
 
 		/// <summary>
 		/// De-identifies the specified DICOM file by replacing the values in the specified tags with the specified value.
@@ -27,38 +35,45 @@ namespace DicomLib
 		/// <param name="writer">Destination for verbose output.</param>
 		/// <returns></returns>
 		/// <remarks>This function does not remove data from the image, only from the tags.</remarks>
-		public Stream ProcessTags(Stream dicom, string replaceValue, IList<string> tagsToProcess, IVerboseWriter writer)
+		public Stream ProcessTags(Stream dicom, string replaceValue, IList<DicomTagProcessTask> tagsToProcess, IVerboseWriter writer)
 		{
 			if (dicom == null) throw new ArgumentNullException(nameof(dicom));
 			if (tagsToProcess == null) throw new ArgumentNullException(nameof(tagsToProcess));
 			if (tagsToProcess.Count == 0) throw new ArgumentException($"{nameof(tagsToProcess)} should contain at least one element.");
 			if (replaceValue == null) replaceValue = string.Empty;
 
-			List<DicomTag> Process = new List<DicomTag>();
-
 			// Process the list of tags to process passed in as a IList<string> into fodicom objects
-			foreach (string TagName in tagsToProcess)
-			{
-				Process.Add(DicomTag.Parse(TagName));
-			}
+			IList<fodicomTask> Process = tagsToProcess
+				.Where(t => t.ProcessAction != DicomTagProcessAction.Ignore)
+				.Select(t => new fodicomTask() { Tag = DicomTag.Parse(t.DicomTag), ProcessAction = t.ProcessAction })
+				.ToList();
 
+			// Ensure the stream is at the starting position
 			dicom.Position = 0;
+			// Open the stream as a fodicom DicomFile
 			DicomFile df = DicomFile.Open(dicom, FileReadOption.ReadAll);
 
-			OutputDicomTags(writer, df.Dataset, Process, "BEFORE VALUES");
+#if VERBOSE
+			OutputDicomTags(writer, df.Dataset, Process.Select(t => t.Tag).ToList(), "BEFORE VALUES");
+#endif
 
 			// Must create a list and not IEnumerable (or single statement) because the enumeration will be modified when AddOrUpdate is called
+			// TODO: Process all sequences and retain original list of tags?
 			IList<DicomItem> ToUpdate = df.Dataset
-				.Where(ds => Process.Contains(ds.Tag)
+				.Where(ds => Process.Select(t => t.Tag).Contains(ds.Tag)
 						&& df.Dataset.GetValueCount(ds.Tag) > 0)
 				.ToList();
 
 			ToUpdate
-				.Each(item => AddOrUpdateDicomItem(df.Dataset, item.ValueRepresentation, item.Tag, replaceValue));
+				.Each(item => AddOrUpdateDicomItem(df.Dataset, item.ValueRepresentation, item.Tag, replaceValue,
+					Process.Single(p => p.Tag.Equals(item.Tag)).ProcessAction,
+					_institutionId));
 
 			df.Dataset.Validate();
 
-			OutputDicomTags(writer, df.Dataset, Process, "AFTER VALUES");
+#if VERBOSE
+			OutputDicomTags(writer, df.Dataset, Process.Select(t => t.Tag).ToList(), "AFTER VALUES");
+#endif
 
 			Stream OutStream = new MemoryStream();
 			df.Save(OutStream);
@@ -113,8 +128,11 @@ namespace DicomLib
 #endif
 		}
 
-		private void AddOrUpdateDicomItem(DicomDataset dataset, DicomVR valueRepresentation, DicomTag tag, string replaceValue)
+		private void AddOrUpdateDicomItem(DicomDataset dataset, DicomVR valueRepresentation, DicomTag tag, string replaceValue,
+			DicomTagProcessAction action, string institutionId)
 		{
+			if (action == DicomTagProcessAction.Ignore) return;
+
 			// List of ifs is a code smell, but it doesn't seem to make sense to create an interface for this
 			// Also, can't use switch statement because DicomVR.CS is not a constant
 			if (DicomVR.CS.Code.Equals(valueRepresentation.Code))
@@ -133,11 +151,7 @@ namespace DicomLib
 			else if (DicomVR.TM.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle TM?
-			}
-			else if (DicomVR.UI.Code.Equals(valueRepresentation.Code))
-			{
-				// TODO: How to handle hashing if needed
-				_ = dataset.AddOrUpdate(valueRepresentation, tag, string.Empty);
+				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
 			}
 			else if (DicomVR.SQ.Code.Equals(valueRepresentation.Code))
 			{
@@ -150,7 +164,7 @@ namespace DicomLib
 						// i.e., the list of items to process only applies at the top level
 						IList<DicomItem> ToUpdate = ChildDS.ToList();
 						ToUpdate
-							.Each(item => AddOrUpdateDicomItem(ChildDS, item.ValueRepresentation, item.Tag, replaceValue));
+							.Each(item => AddOrUpdateDicomItem(ChildDS, item.ValueRepresentation, item.Tag, replaceValue, action, institutionId));
 					}
 				}
 			}
@@ -176,9 +190,28 @@ namespace DicomLib
 				// Clear age string
 				_ = dataset.AddOrUpdate(valueRepresentation, tag, string.Empty);
 			}
+			else if (DicomVR.UI.Code.Equals(valueRepresentation.Code))
+			{
+				switch (action)
+				{
+					case DicomTagProcessAction.Clear:
+						_ = dataset.AddOrUpdate(valueRepresentation, tag, string.Empty);
+						break;
+
+					case DicomTagProcessAction.Redact:
+						string NewUid = GetOrCreateRedactedUid(tag.ToString(), dataset.GetString(tag), institutionId);
+						_ = dataset.AddOrUpdate(valueRepresentation, tag, NewUid);
+						break;
+
+					default:
+						throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' using action '{action}' is not implemented in this library.");
+				}
+			}
 			else if (DicomVR.UN.Code.Equals(valueRepresentation.Code))
 			// Can't handle "Unknown"
-			{ }
+			{
+				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+			}
 			else
 			{
 				// Attempt to update like a string
@@ -268,6 +301,11 @@ namespace DicomLib
 			return OutStream;
 		}
 
+		/// <summary>
+		/// Retrieves the patient ID value from DICOM tag 0010,0020.
+		/// </summary>
+		/// <param name="dicom">The DICOM file contents.</param>
+		/// <returns>The value of the DICOM tag.</returns>
 		public string GetPatientId(Stream dicom)
 		{
 			if (dicom == null) throw new ArgumentNullException(nameof(dicom));
@@ -282,7 +320,14 @@ namespace DicomLib
 				return null;
 		}
 
-		public Stream SetPatientId(Stream dicom, string newPatientId, IVerboseWriter writer)
+		/// <summary>
+		/// Sets the specified value of the patient ID in DICOM tag 0010,0020
+		/// </summary>
+		/// <param name="dicom">The DICOM file to update.</param>
+		/// <param name="newPatientId">The new patient ID to use.</param>
+		/// <param name="writer">(optional) An implementation of IVerboseWriter to log output.</param>
+		/// <returns>The contents of the updated file.</returns>
+		public Stream SetPatientId(Stream dicom, string newPatientId, IVerboseWriter writer = null)
 		{
 			if (dicom == null) throw new ArgumentNullException(nameof(dicom));
 			if (string.IsNullOrWhiteSpace(newPatientId)) throw new ArgumentException(nameof(newPatientId));
@@ -301,6 +346,30 @@ namespace DicomLib
 			OutStream.Position = 0;
 
 			return OutStream;
+		}
+
+		/// <summary>
+		/// Uses the instance's IUidMapProvider to get an existing redacted UID for the specified original UID,
+		/// or if one does not exist yet, creates a new one using the DicomHelper.
+		/// </summary>
+		/// <param name="dicomTag">The tag to retrieve or create a redacted UID for.</param>
+		/// <param name="originalUid">The UID to redact.</param>
+		/// <returns>An existing or new redacted UID, which starts with "2.25".</returns>
+		private string GetOrCreateRedactedUid(string dicomTag, string originalUid, string institutionId)
+		{
+			if (string.IsNullOrWhiteSpace(originalUid)) throw new ArgumentNullException(nameof(originalUid));
+			if (string.IsNullOrWhiteSpace(dicomTag)) throw new ArgumentNullException(nameof(dicomTag));
+
+			string RedactedUid = _uidMapProvider.GetRedactedUid(dicomTag, originalUid);
+
+			if (string.IsNullOrWhiteSpace(RedactedUid))
+			{
+				// TODO: Inject DicomHelper?
+				RedactedUid = DicomHelper.GenerateNewUid();
+				_uidMapProvider.SetRedactedUid(dicomTag, originalUid, RedactedUid, institutionId);
+			}
+
+			return RedactedUid;
 		}
 	}
 }

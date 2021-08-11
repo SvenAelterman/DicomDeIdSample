@@ -19,19 +19,20 @@ namespace Function_01
 		/// </summary>
 		/// <param name="eventGridEvent"></param>
 		/// <param name="inStream">The input DICOM file from the Blob storage.</param>
-		/// <param name="outStream">The output blob.</param>
-		/// <param name="idMapTable"></param>
+		/// <param name="idMapTable">The Azure Table containing between patient medical record number and study ID.</param>
+		/// <param name="uidMapTable">The Azure Table containing the map of UIDs.</param>
 		/// <param name="log"></param>
 		[FunctionName("DicomDeIdFx")]
 		public static void Run(
 			[EventGridTrigger] EventGridEvent eventGridEvent,
 			// The Function app will access the source blob referenced by the Event Grid's data.url property using a system managed identity
 			[Blob("{data.url}", FileAccess.Read)] Stream inStream,
-			// The Azure Table where the map between patient medical record number and study ID is stored
 			[Table("dicomdeid", Connection = "sourceConnection")] CloudTable idMapTable,
+			[Table("dicomuidmap", Connection = "sourceConnection")] CloudTable uidMapTable,
 			ILogger log)
 		{
-			// TODO: consider using StorageBlobCreatedEventData class
+			// TODO: consider using StorageBlobCreatedEventData class (deserialize eventGridEvent.Data JSON)
+
 			string SourceBlobUrl = ((dynamic)eventGridEvent.Data).url;
 			BlobUriBuilder blobUriBuilder = new BlobUriBuilder(new Uri(SourceBlobUrl));
 
@@ -40,63 +41,12 @@ namespace Function_01
 			// Extract institution (partition key for table) from storage account name (last three characters of storage account name)
 			string InstitutionId = StorageAccountName.Substring(StorageAccountName.Length - 3, 3);
 
-			log.LogInformation($"C# Event Grid trigger function processing blob\r\n\tName: {SourceBlobPathAndName}\r\n\tSize: {inStream?.Length} Bytes.");
-
 			if (inStream == null) throw new ArgumentNullException(nameof(inStream));
 
-			// TODO: Define custom class with tag ID and action ("default", "clear", "hash")?
-			IList<string> TagProcessList = new List<string>()
-			{
-				"0002,0000",	// Can't add to sample
-				"0002,0003",	// set in sample, UI
-				"0002,0016",	// Added to sample, AE
-				"0008,0018",	// set in sample, UI
-				"0008,0050",	// Added to sample, SH
-				"0008,0090",	// Added to sample, PN
-				"0010,0030",	// Added to sample, DA
-				"0010,1010",	// Added to sample, AS
-				"0010,0010",	// Updated in sample, PN
-				"0010,0020",	// Added to sample, LO
-				"0018,1000",	// Add to sample, LO (retired tag, per LEADTOOLS)
-				"0010,21C0",	// Added to sample, US 0001
-				"0008,0080",	// Added to sample, LO
-				"0008,0081",	// Added to sample, ST
-				"0008,1010",	// Added to sample, SH
-				"0008,1070",	// Added to sample, PN
-				"0040,0007",	// Added to sample, LO
-				"0040,0275",	// Unable to add to sample
-				// Updates 2021-07-29
-				"0008,1032",
-				"0008,1048",
-				"0008,1140",
-				"0032,1032",
-				"0032,1064",
-				"0040,0253",
-				"0020,0010",
-				"0008,0023",
-				"0008,0030",
-				"0008,0031",
-				"0008,0021",
-				"0008,0020",
-				"0008,0030",
-				"0008,0031",
-				"0008,0032",
-				"0008,0033",
-				"0020,0010",
-				"0029,1009",
-				"0029,1019",
-				"0040,0244",
-				"0040,0245",
-				"0020,0052",
-				// Tags that need to be hashed
-				"0020,000D",
-				"0020,000E",
-				"0040,1001",
-				// HACK: To try SQ
-				//"0008,9215",
-			};
+			// TODO: Define custom class with tag ID and action ("default", "clear", "redact")?
+			IList<DicomTagProcessTask> TagProcessList = DicomHelper.GetDefaultTags();
 
-			IDicomLib lib = new FODicomWrapper();
+			IDicomLib lib = new FODicomWrapper(new AzureTableUidMapProvider(uidMapTable), InstitutionId);
 			IVerboseWriter writer = new VerboseLogger(log);
 
 			// Retrieve the subject's current medical record number before anonymization
@@ -106,7 +56,7 @@ namespace Function_01
 
 			if (GetStudyId != null)
 			{
-				// TODO: Hash certain tags as required by Flywheel (0020,000D ; 0020,000E ; 0040,1001)
+				// TODO: Consider creating an overarching function in IDicomLib that performs the entire process
 
 				// Process the tags for anonymization
 				Stream ModifiedStream = lib.ProcessTags(inStream, null, TagProcessList, writer);
