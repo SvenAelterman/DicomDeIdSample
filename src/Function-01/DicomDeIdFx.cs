@@ -27,6 +27,7 @@ namespace Function_01
 			[EventGridTrigger] EventGridEvent eventGridEvent,
 			// The Function app will access the source blob referenced by the Event Grid's data.url property using a system managed identity
 			[Blob("{data.url}", FileAccess.Read)] Stream inStream,
+			// TODO: Revisit single vs. multiple tables with maps
 			[Table("dicomdeid", Connection = "sourceConnection")] CloudTable idMapTable,
 			[Table("dicomuidmap", Connection = "sourceConnection")] CloudTable uidMapTable,
 			ILogger log)
@@ -41,7 +42,11 @@ namespace Function_01
 			// Extract institution (partition key for table) from storage account name (last three characters of storage account name)
 			string InstitutionId = StorageAccountName.Substring(StorageAccountName.Length - 3, 3);
 
+			log.LogInformation($"Received event for file '{SourceBlobPathAndName}' for institution '{InstitutionId}'.");
+
 			if (inStream == null) throw new ArgumentNullException(nameof(inStream));
+			if (idMapTable == null) throw new ArgumentNullException(nameof(idMapTable));
+			if (uidMapTable == null) throw new ArgumentNullException(nameof(uidMapTable));
 
 			// TODO: Define custom class with tag ID and action ("default", "clear", "redact")?
 			IList<DicomTagProcessTask> TagProcessList = DicomHelper.GetDefaultTags();
@@ -79,21 +84,23 @@ namespace Function_01
 				BlobClient c = Container.GetBlobClient(TargetBlobPathAndName);
 
 				// TODO: Consider adding metadata for lineage?
+				// TODO: Simplify to creating a Dictionary<string, string> instead?
 				//BlobUploadOptions opt = new BlobUploadOptions();
 				//opt.Metadata.Add("processed-by", "ms-us-edu-dicomdeid-sample");
+				//c.SetMetadata(opt.Metadata);
 
 				c.Upload(ModifiedStream, overwrite: true);
 			}
 			else
 			{
 				// Log error
-				log.LogError("Could not retrieve study ID for patient.");
+				log.LogError($"Could not retrieve study ID for patient in file '{SourceBlobPathAndName}'.");
 			}
 		}
 
 		/// <summary>
 		/// Turns the source blob path from
-		/// LAST_INITIAL_AGE/study/series/file001.dcm
+		/// LAST_FIRST_INITIAL_AGE/study/series/file001.dcm
 		/// into
 		/// institutionid/patientstudyid/study/series/file001.dcm
 		/// </summary>
