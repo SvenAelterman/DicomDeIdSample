@@ -8,6 +8,7 @@
 		 */
 		Ignore = 0,     // Do nothing
 		Redact = 1,     // U
-		Clear = 2       // X
+		Clear = 2,      // X
+		Sequence = 3
 	}
 }

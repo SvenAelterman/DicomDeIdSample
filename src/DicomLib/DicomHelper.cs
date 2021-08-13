@@ -58,7 +58,8 @@ namespace DicomLib
 				// Updates 2021-07-29
 				new DicomTagProcessTask() { DicomTag = "0008,1032" },
 				new DicomTagProcessTask() { DicomTag = "0008,1048" },
-				new DicomTagProcessTask() { DicomTag = "0008,1140" },
+				new DicomTagProcessTask() { DicomTag = "0008,1150", ProcessAction = DicomTagProcessAction.Redact },	// child of SQ 8,1140
+				new DicomTagProcessTask() { DicomTag = "0008,1155", ProcessAction = DicomTagProcessAction.Redact },	// child of SQ 8,1140
 				new DicomTagProcessTask() { DicomTag = "0032,1032" },
 				new DicomTagProcessTask() { DicomTag = "0032,1064" },
 				new DicomTagProcessTask() { DicomTag = "0040,0253" },
@@ -85,8 +86,6 @@ namespace DicomLib
 
 				// TODO: Confirm? This does not seem like PHI?
 				new DicomTagProcessTask() { DicomTag = "0040,1001", ProcessAction = DicomTagProcessAction.Ignore },
-				// HACK: To try SQ
-				//new DicomTagProcessTask() { DicomTag = "0008,9215", ProcessAction = DicomTagProcessAction.Clear },
 			};
 		}
 	}

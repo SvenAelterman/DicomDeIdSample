@@ -58,16 +58,12 @@ namespace DicomLib
 #endif
 
 			// Must create a list and not IEnumerable (or single statement) because the enumeration will be modified when AddOrUpdate is called
-			// TODO: Process all sequences and retain original list of tags?
-			IList<DicomItem> ToUpdate = df.Dataset
-				.Where(ds => Process.Select(t => t.Tag).Contains(ds.Tag)
-						&& df.Dataset.GetValueCount(ds.Tag) > 0)
-				.ToList();
+			IList<DicomItem> ToUpdate = GetItemsToProcess(df.Dataset, Process);
 
 			ToUpdate
-				.Each(item => AddOrUpdateDicomItem(df.Dataset, item.ValueRepresentation, item.Tag, replaceValue,
-					Process.Single(p => p.Tag.Equals(item.Tag)).ProcessAction,
-					_institutionId));
+				.Each(item => AddOrUpdateDicomItem(df.Dataset, item, replaceValue,
+					Process.SingleOrDefault(p => p.Tag.Equals(item.Tag)),
+					_institutionId, Process));
 
 			df.Dataset.Validate();
 
@@ -83,6 +79,16 @@ namespace DicomLib
 			return OutStream;
 		}
 
+		private static IList<DicomItem> GetItemsToProcess(DicomDataset ds, IList<fodicomTask> process)
+		{
+			return ds
+				.Where(i => (process.Select(t => t.Tag).Contains(i.Tag)
+						&& ds.GetValueCount(i.Tag) > 0)
+						// Process all sequences and retain original list of tags
+						|| i.ValueRepresentation.Code.Equals(DicomVRCode.SQ))
+				.ToList();
+		}
+
 		private static void OutputDicomTags(IVerboseWriter writer, DicomDataset dataset, IList<DicomTag> tags,
 			string header = "VALUES", short level = 1)
 		{
@@ -95,7 +101,7 @@ namespace DicomLib
 				writer.Write(header);
 
 				// Only output values for tags to be processed
-				foreach (var item in dataset.Where(ds => tags.Contains(ds.Tag)))
+				foreach (var item in dataset.Where(i => tags.Contains(i.Tag) || i.ValueRepresentation.Code.Equals(DicomVR.SQ)))
 				{
 					writer.Write($"{tabs}{item.Tag} {item.Tag.DictionaryEntry.Name}: {item.ValueRepresentation.Name} ({item.ValueRepresentation.ValueType}):");
 
@@ -115,30 +121,37 @@ namespace DicomLib
 							OutputDicomTags(writer, ChildDS, ChildTags, header: "CHILD VALUES", level: ++level);
 						}
 					}
-					if (dataset.TryGetString(item.Tag, out string Value))
+					else if (dataset.TryGetString(item.Tag, out string Value))
 					{
 						writer.Write(tabs + tabs + Value);
 					}
 					else
 					{
-						writer.Write($"{tabs}{tabs}<not a string>");
+						writer.Write($"{tabs}{tabs}<not a string or a sequence>");
 					}
 				}
 			}
 #endif
 		}
 
-		private void AddOrUpdateDicomItem(DicomDataset dataset, DicomVR valueRepresentation, DicomTag tag, string replaceValue,
-			DicomTagProcessAction action, string institutionId)
+		private void AddOrUpdateDicomItem(DicomDataset dataset, DicomItem item, string replaceValue,
+			fodicomTask task, string institutionId,
+			IList<fodicomTask> process)
 		{
+			DicomVR valueRepresentation = item.ValueRepresentation;
+			DicomTag tag = item.Tag;
+
+			// If this is processing a SQ, we don't need an action specified
+			if (task == null && !valueRepresentation.Code.Equals("SQ")) throw new ArgumentNullException(nameof(task));
+
+			DicomTagProcessAction action = (task != null ? task.ProcessAction : DicomTagProcessAction.Sequence);
+
 			if (action == DicomTagProcessAction.Ignore) return;
 
 			// List of ifs is a code smell, but it doesn't seem to make sense to create an interface for this
 			// Also, can't use switch statement because DicomVR.CS is not a constant
 			if (DicomVR.CS.Code.Equals(valueRepresentation.Code))
 			{
-				// TODO: If there are no special characters in the replace value, use it
-				// Regex? Must be precompiled + cached
 				const string ValidPattern = @"[^A-Z0-9_ ]";
 				replaceValue = Regex.Replace(replaceValue, ValidPattern, "_");
 				_ = dataset.AddOrUpdate(valueRepresentation, tag, replaceValue);
@@ -160,21 +173,25 @@ namespace DicomLib
 				{
 					foreach (DicomDataset ChildDS in seq.Items)
 					{
-						// Output all child tags present
-						// i.e., the list of items to process only applies at the top level
-						IList<DicomItem> ToUpdate = ChildDS.ToList();
+						// Process the same tags as for the parent dataset
+						IList<DicomItem> ToUpdate = GetItemsToProcess(ChildDS, process);
+
 						ToUpdate
-							.Each(item => AddOrUpdateDicomItem(ChildDS, item.ValueRepresentation, item.Tag, replaceValue, action, institutionId));
+							.Each(item => AddOrUpdateDicomItem(ChildDS, item, replaceValue,
+								process.SingleOrDefault(p => p.Tag.Equals(item.Tag)),
+								_institutionId, process));
 					}
 				}
 			}
 			else if (DicomVR.DS.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle DS (Decimal String)?
+				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
 			}
 			else if (DicomVR.IS.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle IS (Integer String)?
+				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
 			}
 			else if (DicomVR.US.Code.Equals(valueRepresentation.Code))
 			{
@@ -184,6 +201,7 @@ namespace DicomLib
 			else if (DicomVR.OW.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle OW (Other Word string)?
+				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
 			}
 			else if (DicomVR.AS.Code.Equals(valueRepresentation.Code))
 			{
@@ -208,8 +226,8 @@ namespace DicomLib
 				}
 			}
 			else if (DicomVR.UN.Code.Equals(valueRepresentation.Code))
-			// Can't handle "Unknown"
 			{
+				// Can't handle "Unknown"
 				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
 			}
 			else
@@ -228,6 +246,7 @@ namespace DicomLib
 			{
 				return dataset.AddOrUpdate(DicomVR.DA, tag, NewValue.AddDays(14));
 			}
+
 			return null;
 			// TODO: How to handle failure?
 		}
@@ -257,7 +276,6 @@ namespace DicomLib
 			// Deliberately don't include other tags for this sample
 			foreach (var fmi in df.Dataset.Where(ds => ds.ValueRepresentation.Code == "PN"))
 			{
-				// TODO: Text Analytics here
 				if (!Keep.Contains(fmi.Tag))
 				{
 					ToUpdate.Add(fmi.Tag);
@@ -267,7 +285,6 @@ namespace DicomLib
 			// Process each tag
 			foreach (var tag in ToUpdate)
 			{
-				// TODO: Log original value, etc.
 				df.Dataset.AddOrUpdate(new DicomPersonName(tag, replaceValue));
 			}
 
@@ -364,7 +381,6 @@ namespace DicomLib
 
 			if (string.IsNullOrWhiteSpace(RedactedUid))
 			{
-				// TODO: Inject DicomHelper?
 				RedactedUid = DicomHelper.GenerateNewUid();
 				_uidMapProvider.SetRedactedUid(dicomTag, originalUid, RedactedUid, institutionId);
 			}

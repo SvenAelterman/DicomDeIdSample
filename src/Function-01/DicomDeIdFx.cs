@@ -1,6 +1,8 @@
+using Azure.Data.Tables;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using DicomLib;
-using Microsoft.Azure.Cosmos.Table;
+//using Microsoft.Azure.Cosmos.Table;
 using Microsoft.Azure.EventGrid.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
@@ -25,71 +27,76 @@ namespace Function_01
 		[FunctionName("DicomDeIdFx")]
 		public static void Run(
 			[EventGridTrigger] EventGridEvent eventGridEvent,
-			// The Function app will access the source blob referenced by the Event Grid's data.url property using a system managed identity
-			[Blob("{data.url}", FileAccess.Read)] Stream inStream,
-			// TODO: Revisit single vs. multiple tables with maps
-			[Table("dicomdeid", Connection = "sourceConnection")] CloudTable idMapTable,
-			[Table("dicomuidmap", Connection = "sourceConnection")] CloudTable uidMapTable,
 			ILogger log)
 		{
-			// TODO: consider using StorageBlobCreatedEventData class (deserialize eventGridEvent.Data JSON)
+			if (eventGridEvent == null) throw new ArgumentNullException(nameof(EventGridEvent));
 
 			string SourceBlobUrl = ((dynamic)eventGridEvent.Data).url;
 			BlobUriBuilder blobUriBuilder = new BlobUriBuilder(new Uri(SourceBlobUrl));
 
 			string SourceBlobPathAndName = blobUriBuilder.BlobName;
 			string StorageAccountName = blobUriBuilder.AccountName;
+
 			// Extract institution (partition key for table) from storage account name (last three characters of storage account name)
 			string InstitutionId = StorageAccountName.Substring(StorageAccountName.Length - 3, 3);
 
 			log.LogInformation($"Received event for file '{SourceBlobPathAndName}' for institution '{InstitutionId}'.");
 
-			if (inStream == null) throw new ArgumentNullException(nameof(inStream));
+			// Download the contents of the DICOM file
+			BlobClient blobClient = new BlobClient(blobUriBuilder.ToUri(), _credential);
+			using Stream BlobStream = blobClient.DownloadStreaming().Value.Content;
+
+			// Copy to a memory stream, which can seek
+			using MemoryStream DicomStream = new MemoryStream();
+			BlobStream.CopyTo(DicomStream);
+
+			if (DicomStream == null) throw new ArgumentNullException(nameof(DicomStream));
+			if (!DicomStream.CanSeek) throw new InvalidOperationException("Stream must support seeking.");
+
+			TableClient idMapTable = GetTableFromStorageAccount(blobUriBuilder, "dicomdeid");
+			TableClient uidMapTable = GetTableFromStorageAccount(blobUriBuilder, "dicomuidmap");
+
 			if (idMapTable == null) throw new ArgumentNullException(nameof(idMapTable));
 			if (uidMapTable == null) throw new ArgumentNullException(nameof(uidMapTable));
 
-			// TODO: Define custom class with tag ID and action ("default", "clear", "redact")?
+			// Get the list of tags to process as part of de-identification
 			IList<DicomTagProcessTask> TagProcessList = DicomHelper.GetDefaultTags();
 
 			IDicomLib lib = new FODicomWrapper(new AzureTableUidMapProvider(uidMapTable), InstitutionId);
 			IVerboseWriter writer = new VerboseLogger(log);
 
-			// Retrieve the subject's current medical record number before anonymization
-			string CurrentPatientId = lib.GetPatientId(inStream);
+			// Retrieve the subject's current medical record number before anonymization from the DICOM file
+			string CurrentPatientId = lib.GetPatientId(DicomStream);
 			// Construct query to retrieve the subject's study ID from the Azure Table
-			TableOperation GetStudyId = TableOperation.Retrieve<IdMapEntity>(InstitutionId, CurrentPatientId);
+			// Retrieve the subject's study ID
+			string NewPatientId = idMapTable.GetEntity<IdMapEntity>(InstitutionId, CurrentPatientId).Value?.StudyId;
 
-			if (GetStudyId != null)
+			if (!string.IsNullOrWhiteSpace(NewPatientId))
 			{
-				// TODO: Consider creating an overarching function in IDicomLib that performs the entire process
-
 				// Process the tags for anonymization
-				Stream ModifiedStream = lib.ProcessTags(inStream, null, TagProcessList, writer);
-
-				// Retrieve the subject's study ID
-				// TODO: Create a cache?
-				string NewPatientId = ((IdMapEntity)idMapTable.ExecuteAsync(GetStudyId).Result.Result).StudyId;
+				Stream ModifiedStream = lib.ProcessTags(DicomStream, null, TagProcessList, writer);
 
 				// Pass in the already modified (de-identified) stream to the method to set the patient ID to the study ID
 				// Add subject's study ID to 0010,0020
 				ModifiedStream = lib.SetPatientId(ModifiedStream, NewPatientId, writer);
 
+				// Create the target path based on the source path
 				string TargetBlobPathAndName = CreateTargetBlobPath(SourceBlobPathAndName, NewPatientId, InstitutionId);
 
-				BlobServiceClient TargetStorageAccount = new BlobServiceClient(Environment.GetEnvironmentVariable("targetBlobConnection"));
-				BlobContainerClient Container = TargetStorageAccount.GetBlobContainerClient(Environment.GetEnvironmentVariable("targetContainerName"));
+				// Use URL and managed identity credential instead of full connection string
+				BlobContainerClient TargetContainer = new BlobContainerClient(
+					new Uri($"{Environment.GetEnvironmentVariable("targetBlobUri")}/{Environment.GetEnvironmentVariable("targetContainerName")}"),
+					_credential);
 
-				Container.CreateIfNotExists();
+				TargetContainer.CreateIfNotExists();
 
-				BlobClient c = Container.GetBlobClient(TargetBlobPathAndName);
-
-				// TODO: Consider adding metadata for lineage?
-				// TODO: Simplify to creating a Dictionary<string, string> instead?
-				//BlobUploadOptions opt = new BlobUploadOptions();
-				//opt.Metadata.Add("processed-by", "ms-us-edu-dicomdeid-sample");
-				//c.SetMetadata(opt.Metadata);
+				BlobClient c = TargetContainer.GetBlobClient(TargetBlobPathAndName);
 
 				c.Upload(ModifiedStream, overwrite: true);
+
+				// Add metadata for lineage
+				IDictionary<string, string> Metadata = new Dictionary<string, string>() { { "processed_by", "ms-us-edu-dicomdeid-sample" } };
+				c.SetMetadata(Metadata);
 			}
 			else
 			{
@@ -98,16 +105,48 @@ namespace Function_01
 			}
 		}
 
+		private readonly static DefaultAzureCredential _credential = new DefaultAzureCredential(
+			new DefaultAzureCredentialOptions()
+			{
+				// Local debuggin in VS failed without excluding these possible choices
+				ExcludeAzureCliCredential = true,
+				ExcludeAzurePowerShellCredential = true,
+				ExcludeEnvironmentCredential = true,
+				ExcludeInteractiveBrowserCredential = true,
+				ExcludeVisualStudioCodeCredential = true,
+			});
+
+		/// <summary>
+		/// Creates a table client referencing the specified table in the same storage account as the specified blob URI.
+		/// </summary>
+		/// <param name="blobUriBuilder">The blob URI.</param>
+		/// <param name="tableName">The name of the table.</param>
+		/// <returns>A TableClient instance.</returns>
+		private static TableClient GetTableFromStorageAccount(BlobUriBuilder blobUriBuilder, string tableName)
+		{
+			return new TableClient(GenerateTableUriFromBlobUriBuilder(blobUriBuilder), tableName, _credential);
+		}
+
+		/// <summary>
+		/// Generates a URI pointing at the table endpoint of the specified storage account based on the specified blob URI.
+		/// </summary>
+		/// <param name="uriBuilder">The blob URI.</param>
+		/// <returns>A URI to the table endpoint of the same storage account specified in the <paramref name="uriBuilder"/> parameter.</returns>
+		private static Uri GenerateTableUriFromBlobUriBuilder(BlobUriBuilder uriBuilder)
+		{
+			return new Uri($"{uriBuilder.Scheme}://{uriBuilder.Host.Replace("blob", "table")}");
+		}
+
 		/// <summary>
 		/// Turns the source blob path from
 		/// LAST_FIRST_INITIAL_AGE/study/series/file001.dcm
 		/// into
 		/// institutionid/patientstudyid/study/series/file001.dcm
 		/// </summary>
-		/// <param name="sourceBlobPath"></param>
-		/// <param name="newPatientId"></param>
-		/// <param name="institutionId"></param>
-		/// <returns></returns>
+		/// <param name="sourceBlobPath">The path of the source blob (which triggered the function).</param>
+		/// <param name="newPatientId">The value with wich to replace the subject folder name.</param>
+		/// <param name="institutionId">The value to prepend as the new root folder.</param>
+		/// <returns>The target blob path.</returns>
 		private static string CreateTargetBlobPath(string sourceBlobPath, string newPatientId, string institutionId)
 		{
 			// Site should not be part of this, because the storage accounts indicates the site. In which case we need to add an array element in the front

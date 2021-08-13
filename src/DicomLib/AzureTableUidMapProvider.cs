@@ -1,4 +1,6 @@
-﻿using Microsoft.Azure.Cosmos.Table;
+﻿//using Microsoft.Azure.Cosmos.Table;
+using Azure;
+using Azure.Data.Tables;
 using System;
 
 namespace DicomLib
@@ -8,9 +10,9 @@ namespace DicomLib
 	/// </summary>
 	public class AzureTableUidMapProvider : IUidMapProvider
 	{
-		private readonly CloudTable _table;
+		private readonly TableClient _table;
 
-		public AzureTableUidMapProvider(CloudTable table)
+		public AzureTableUidMapProvider(TableClient table)
 		{
 			_table = table ?? throw new ArgumentNullException(nameof(table));
 		}
@@ -26,10 +28,24 @@ namespace DicomLib
 			if (string.IsNullOrWhiteSpace(dicomTag)) throw new ArgumentNullException(nameof(dicomTag));
 			if (string.IsNullOrWhiteSpace(originalUid)) throw new ArgumentNullException(nameof(originalUid));
 
-			TableOperation GetUid = TableOperation.Retrieve<UidMapEntity>(dicomTag, originalUid);
+			try
+			{
+				Response<UidMapEntity> r = _table.GetEntity<UidMapEntity>(dicomTag, originalUid);
 
-			// This will return null if the table operation doesn't return anything
-			return ((UidMapEntity)_table.ExecuteAsync(GetUid).Result?.Result)?.RedactedUid;
+				if (r.GetRawResponse().Status < 400
+					&& r.Value != null)
+				{
+					return r.Value.RedactedUid;
+				}
+				else
+				{
+					throw new InvalidOperationException("Exception while retrieving a redacted UID.");
+				}
+			}
+			catch (RequestFailedException ex) when (ex.Status == 404)
+			{
+				return null;
+			}
 		}
 
 		/// <summary>
@@ -47,9 +63,9 @@ namespace DicomLib
 			// It's OK if institutionID is null or empty
 
 			UidMapEntity e = new UidMapEntity(dicomTag, originalUid, redactedUid, institutionId);
-			TableOperation SetUid = TableOperation.Insert(e);
+			Response r = _table.AddEntity(e);
 
-			_ = _table.ExecuteAsync(SetUid).Result.Result;
+			if (r.Status >= 400) throw new InvalidOperationException($"Could not upsert {e} due to {r.ReasonPhrase} ({r.Status})");
 		}
 	}
 }
