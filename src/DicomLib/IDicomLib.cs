@@ -16,7 +16,7 @@ namespace DicomLib
 		/// <returns>A new Stream object containing the new DicomFile</returns>
 		Stream RemoveTags(Stream dicom, string replaceValue, IList<string> keepTags, IVerboseWriter writer);
 
-		Stream ProcessTags(Stream dicom, string replaceValue, IList<DicomTagProcessTask> tagsToProcess, IVerboseWriter writer);
+		Stream ProcessTags(Stream dicom, string replaceValue, IList<DicomTagProcessTask> tagsToProcess);
 		string GetPatientId(Stream dicom);
 		Stream SetPatientId(Stream dicom, string newPatientId, IVerboseWriter writer);
 	}

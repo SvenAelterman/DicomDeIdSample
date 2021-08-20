@@ -18,11 +18,13 @@ namespace DicomLib
 		private const string PatientIdTagValue = "0010,0020";
 		private readonly IUidMapProvider _uidMapProvider;
 		private readonly string _institutionId;
-
-		public FODicomWrapper(IUidMapProvider uidMapProvider, string institutionId)
+		private readonly IVerboseWriter _writer;
+		public FODicomWrapper(IUidMapProvider uidMapProvider, string institutionId,
+			IVerboseWriter writer)
 		{
 			_uidMapProvider = uidMapProvider;
 			_institutionId = institutionId;
+			_writer = writer;
 		}
 
 		/// <summary>
@@ -35,7 +37,7 @@ namespace DicomLib
 		/// <param name="writer">Destination for verbose output.</param>
 		/// <returns></returns>
 		/// <remarks>This function does not remove data from the image, only from the tags.</remarks>
-		public Stream ProcessTags(Stream dicom, string replaceValue, IList<DicomTagProcessTask> tagsToProcess, IVerboseWriter writer)
+		public Stream ProcessTags(Stream dicom, string replaceValue, IList<DicomTagProcessTask> tagsToProcess)
 		{
 			if (dicom == null) throw new ArgumentNullException(nameof(dicom));
 			if (tagsToProcess == null) throw new ArgumentNullException(nameof(tagsToProcess));
@@ -54,7 +56,7 @@ namespace DicomLib
 			DicomFile df = DicomFile.Open(dicom, FileReadOption.ReadAll);
 
 #if VERBOSE
-			OutputDicomTags(writer, df.Dataset, Process.Select(t => t.Tag).ToList(), "BEFORE VALUES");
+			OutputDicomTags(_writer, df.Dataset, Process.Select(t => t.Tag).ToList(), "BEFORE VALUES");
 #endif
 
 			// Must create a list and not IEnumerable (or single statement) because the enumeration will be modified when AddOrUpdate is called
@@ -68,7 +70,7 @@ namespace DicomLib
 			df.Dataset.Validate();
 
 #if VERBOSE
-			OutputDicomTags(writer, df.Dataset, Process.Select(t => t.Tag).ToList(), "AFTER VALUES");
+			OutputDicomTags(_writer, df.Dataset, Process.Select(t => t.Tag).ToList(), "AFTER VALUES");
 #endif
 
 			Stream OutStream = new MemoryStream();
@@ -164,7 +166,8 @@ namespace DicomLib
 			else if (DicomVR.TM.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle TM?
-				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				_writer.Write("Unable to handle TM");
 			}
 			else if (DicomVR.SQ.Code.Equals(valueRepresentation.Code))
 			{
@@ -186,12 +189,14 @@ namespace DicomLib
 			else if (DicomVR.DS.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle DS (Decimal String)?
-				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				_writer.Write("Unable to handle DS");
 			}
 			else if (DicomVR.IS.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle IS (Integer String)?
-				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				_writer.Write("Unable to handle IS");
 			}
 			else if (DicomVR.US.Code.Equals(valueRepresentation.Code))
 			{
@@ -201,7 +206,8 @@ namespace DicomLib
 			else if (DicomVR.OW.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle OW (Other Word string)?
-				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				_writer.Write("Unable to handle OW");
 			}
 			else if (DicomVR.AS.Code.Equals(valueRepresentation.Code))
 			{
@@ -228,7 +234,8 @@ namespace DicomLib
 			else if (DicomVR.UN.Code.Equals(valueRepresentation.Code))
 			{
 				// Can't handle "Unknown"
-				throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
+				_writer.Write("Unable to handle UN");
 			}
 			else
 			{

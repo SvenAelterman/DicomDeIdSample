@@ -2,7 +2,7 @@
   "profiles": {
     "Function-01": {
       "commandName": "Project",
-      "commandLineArgs": "host start -p 8080"
+      "commandLineArgs": "host start -p 7071"
     }
   }
 }

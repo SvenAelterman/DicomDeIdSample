@@ -23,13 +23,13 @@ namespace ConsoleTest
 			// Get a reference to the Azure Table in the specified Azure Storage account
 			// For local testing, use Azurite
 			TableClient table = new TableClient(StorageConnectionString, "dicomuidmap");
-			IDicomLib dl = new FODicomWrapper(new AzureTableUidMapProvider(table), institutionId: "INS");
+			IDicomLib dl = new FODicomWrapper(new AzureTableUidMapProvider(table), institutionId: "INS", new ConsoleVerboseWriter());
 
 			Console.WriteLine("De-identifying");
 			ds.Position = 0;
 
 			// Call the helper library to de-identify the file
-			Stream outp = dl.ProcessTags(ds, null, DicomHelper.GetDefaultTags(), new ConsoleVerboseWriter());
+			Stream outp = dl.ProcessTags(ds, null, DicomHelper.GetDefaultTags());
 			outp.Position = 0;
 
 			using StreamWriter writer = new(".\\TestFiles\\processed.dcm", append: false);

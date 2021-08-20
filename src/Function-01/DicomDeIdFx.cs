@@ -27,9 +27,13 @@ namespace Function_01
 		[FunctionName("DicomDeIdFx")]
 		public static void Run(
 			[EventGridTrigger] EventGridEvent eventGridEvent,
-			ILogger log)
+			ILogger log,
+			ExecutionContext exCtx)
 		{
 			if (eventGridEvent == null) throw new ArgumentNullException(nameof(EventGridEvent));
+
+			string TargetStorageAccountUri = Environment.GetEnvironmentVariable("targetBlobUri");
+			if (string.IsNullOrWhiteSpace(TargetStorageAccountUri)) throw new ArgumentNullException(nameof(TargetStorageAccountUri));
 
 			string SourceBlobUrl = ((dynamic)eventGridEvent.Data).url;
 			BlobUriBuilder blobUriBuilder = new BlobUriBuilder(new Uri(SourceBlobUrl));
@@ -39,9 +43,9 @@ namespace Function_01
 
 			// Extract institution (partition key for table) from storage account name (last three characters of storage account name)
 			string InstitutionId = StorageAccountName.Substring(StorageAccountName.Length - 3, 3);
-
+#if VERBOSE
 			log.LogInformation($"Received event for file '{SourceBlobPathAndName}' for institution '{InstitutionId}'.");
-
+#endif
 			// Download the contents of the DICOM file
 			BlobClient blobClient = new BlobClient(blobUriBuilder.ToUri(), _credential);
 			using Stream BlobStream = blobClient.DownloadStreaming().Value.Content;
@@ -58,49 +62,74 @@ namespace Function_01
 
 			if (idMapTable == null) throw new ArgumentNullException(nameof(idMapTable));
 			if (uidMapTable == null) throw new ArgumentNullException(nameof(uidMapTable));
-
+#if VERBOSE
+			log.LogInformation($"Table reference: {idMapTable.AccountName}");
+#endif
 			// Get the list of tags to process as part of de-identification
 			IList<DicomTagProcessTask> TagProcessList = DicomHelper.GetDefaultTags();
 
-			IDicomLib lib = new FODicomWrapper(new AzureTableUidMapProvider(uidMapTable), InstitutionId);
 			IVerboseWriter writer = new VerboseLogger(log);
+			IDicomLib lib = new FODicomWrapper(new AzureTableUidMapProvider(uidMapTable), InstitutionId, writer);
 
 			// Retrieve the subject's current medical record number before anonymization from the DICOM file
 			string CurrentPatientId = lib.GetPatientId(DicomStream);
+#if VERBOSE
+			log.LogInformation($"Current patient ID: '{CurrentPatientId}'");
+#endif
 			// Construct query to retrieve the subject's study ID from the Azure Table
 			// Retrieve the subject's study ID
-			string NewPatientId = idMapTable.GetEntity<IdMapEntity>(InstitutionId, CurrentPatientId).Value?.StudyId;
-
-			if (!string.IsNullOrWhiteSpace(NewPatientId))
+			try
 			{
-				// Process the tags for anonymization
-				Stream ModifiedStream = lib.ProcessTags(DicomStream, null, TagProcessList, writer);
+				string NewPatientId = idMapTable.GetEntity<IdMapEntity>(InstitutionId, CurrentPatientId).Value?.StudyId;
+#if VERBOSE
+				log.LogInformation($"Study ID for '{CurrentPatientId}': '{NewPatientId}'");
+#endif
+				if (!string.IsNullOrWhiteSpace(NewPatientId))
+				{
+					// Process the tags for anonymization
+					Stream ModifiedStream = lib.ProcessTags(DicomStream, null, TagProcessList);
 
-				// Pass in the already modified (de-identified) stream to the method to set the patient ID to the study ID
-				// Add subject's study ID to 0010,0020
-				ModifiedStream = lib.SetPatientId(ModifiedStream, NewPatientId, writer);
+					// Pass in the already modified (de-identified) stream to the method to set the patient ID to the study ID
+					// Add subject's study ID to 0010,0020
+					ModifiedStream = lib.SetPatientId(ModifiedStream, NewPatientId, writer);
 
-				// Create the target path based on the source path
-				string TargetBlobPathAndName = CreateTargetBlobPath(SourceBlobPathAndName, NewPatientId, InstitutionId);
+					// Create the target path based on the source path
+					string TargetBlobPathAndName = CreateTargetBlobPath(SourceBlobPathAndName, NewPatientId, InstitutionId);
 
-				// Use URL and managed identity credential instead of full connection string
-				BlobContainerClient TargetContainer = new BlobContainerClient(
-					new Uri($"{Environment.GetEnvironmentVariable("targetBlobUri")}/{Environment.GetEnvironmentVariable("targetContainerName")}"),
-					_credential);
+					if (TargetStorageAccountUri.Substring(TargetStorageAccountUri.Length - 1, 1).Equals("/"))
+						TargetStorageAccountUri = TargetStorageAccountUri.Substring(0, TargetStorageAccountUri.Length - 1);
 
-				TargetContainer.CreateIfNotExists();
+					string TargetContainerUrl = $"{TargetStorageAccountUri}/{Environment.GetEnvironmentVariable("targetContainerName")}";
+#if VERBOSE
+					log.LogInformation($"Destination URI for anonymized DICOM: '{TargetContainerUrl}/{TargetBlobPathAndName}'");
+#endif
+					// Use URL and managed identity credential instead of full connection string
+					BlobContainerClient TargetContainer = new BlobContainerClient(
+						new Uri(TargetContainerUrl),
+						_credential);
 
-				BlobClient c = TargetContainer.GetBlobClient(TargetBlobPathAndName);
+					TargetContainer.CreateIfNotExists();
 
-				c.Upload(ModifiedStream, overwrite: true);
+					BlobClient c = TargetContainer.GetBlobClient(TargetBlobPathAndName);
 
-				// Add metadata for lineage
-				IDictionary<string, string> Metadata = new Dictionary<string, string>() { { "processed_by", "ms-us-edu-dicomdeid-sample" } };
-				c.SetMetadata(Metadata);
+					c.Upload(ModifiedStream, overwrite: true);
+
+					// Add metadata for lineage
+					IDictionary<string, string> Metadata = new Dictionary<string, string>()
+					{
+						{ "processed_by", "ms-us-edu-dicomdeid-sample" } ,
+						{ "invocation_id", exCtx.InvocationId.ToString() },
+					};
+					c.SetMetadata(Metadata);
+				}
+				else
+				{
+					// Log error
+					log.LogError($"Could not retrieve study ID for patient in file '{SourceBlobPathAndName}'.");
+				}
 			}
-			else
+			catch (Azure.RequestFailedException ex) when (ex.Status == 404)
 			{
-				// Log error
 				log.LogError($"Could not retrieve study ID for patient in file '{SourceBlobPathAndName}'.");
 			}
 		}
