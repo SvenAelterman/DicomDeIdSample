@@ -41,49 +41,51 @@ namespace DicomLib
 				// TODO: Ask for clarification. Not supposed to change unless professional interpretation would change as a result of modifying the image?
 				new DicomTagProcessTask() { DicomTag = "0008,0018", ProcessAction = DicomTagProcessAction.Ignore },	// set in sample, UI
 
-				new DicomTagProcessTask() { DicomTag = "0008,0050" },	// Added to sample, SH
-				new DicomTagProcessTask() { DicomTag = "0008,0090" },	// Added to sample, PN
-				new DicomTagProcessTask() { DicomTag = "0010,0030" },	// Added to sample, DA
-				new DicomTagProcessTask() { DicomTag = "0010,1010" },	// Added to sample, AS
-				new DicomTagProcessTask() { DicomTag = "0010,0010" },	// Updated in sample, PN
-				new DicomTagProcessTask() { DicomTag = "0010,0020" },	// Added to sample, LO
-				new DicomTagProcessTask() { DicomTag = "0018,1000" },	// Add to sample, LO (retired tag, per LEADTOOLS)
-				new DicomTagProcessTask() { DicomTag = "0010,21C0" },	// Added to sample, US 0001
-				new DicomTagProcessTask() { DicomTag = "0008,0080" },	// Added to sample, LO
-				new DicomTagProcessTask() { DicomTag = "0008,0081" },	// Added to sample, ST
-				new DicomTagProcessTask() { DicomTag = "0008,1010" },	// Added to sample, SH
-				new DicomTagProcessTask() { DicomTag = "0008,1070" },	// Added to sample, PN
-				new DicomTagProcessTask() { DicomTag = "0040,0007" },	// Added to sample, LO
-				new DicomTagProcessTask() { DicomTag = "0040,0275" },	// Unable to add to sample
-				// Updates 2021-07-29
-				new DicomTagProcessTask() { DicomTag = "0008,1032" },
-				new DicomTagProcessTask() { DicomTag = "0008,1048" },
-				new DicomTagProcessTask() { DicomTag = "0008,1150", ProcessAction = DicomTagProcessAction.Redact },	// child of SQ 8,1140
-				new DicomTagProcessTask() { DicomTag = "0008,1155", ProcessAction = DicomTagProcessAction.Redact },	// child of SQ 8,1140
-				new DicomTagProcessTask() { DicomTag = "0032,1032" },
-				new DicomTagProcessTask() { DicomTag = "0032,1064" },
-				new DicomTagProcessTask() { DicomTag = "0040,0253" },
-				new DicomTagProcessTask() { DicomTag = "0020,0010" },
-				new DicomTagProcessTask() { DicomTag = "0008,0023" },
-				new DicomTagProcessTask() { DicomTag = "0008,0021" },
 				new DicomTagProcessTask() { DicomTag = "0008,0020" },
+				new DicomTagProcessTask() { DicomTag = "0008,0021" },
+				new DicomTagProcessTask() { DicomTag = "0008,0023" },
 				new DicomTagProcessTask() { DicomTag = "0008,0030" },
-
 				// TODO: Ask clarification how to de-id time
 				new DicomTagProcessTask() { DicomTag = "0008,0031", ProcessAction = DicomTagProcessAction.Ignore },
 				new DicomTagProcessTask() { DicomTag = "0008,0032", ProcessAction = DicomTagProcessAction.Ignore },
 				new DicomTagProcessTask() { DicomTag = "0008,0033", ProcessAction = DicomTagProcessAction.Ignore },
+				new DicomTagProcessTask() { DicomTag = "0008,0050" },	// Added to sample, SH
+				new DicomTagProcessTask() { DicomTag = "0008,0080" },	// Added to sample, LO
+				new DicomTagProcessTask() { DicomTag = "0008,0081" },	// Added to sample, ST
+				new DicomTagProcessTask() { DicomTag = "0008,0090" },	// Added to sample, PN
+				new DicomTagProcessTask() { DicomTag = "0008,1010" },	// Added to sample, SH
+				new DicomTagProcessTask() { DicomTag = "0008,1032" },
+				new DicomTagProcessTask() { DicomTag = "0008,1070" },	// Added to sample, PN
+				new DicomTagProcessTask() { DicomTag = "0008,1048" },
+				new DicomTagProcessTask() { DicomTag = "0008,1150", ProcessAction = DicomTagProcessAction.Redact },	// child of SQ 8,1140
+				new DicomTagProcessTask() { DicomTag = "0008,1155", ProcessAction = DicomTagProcessAction.Redact },	// child of SQ 8,1140
+
+				new DicomTagProcessTask() { DicomTag = "0010,0010" },	// Updated in sample, PN
+				new DicomTagProcessTask() { DicomTag = "0010,0020" },	// Added to sample, LO
+				new DicomTagProcessTask() { DicomTag = "0010,0030" },	// Added to sample, DA
+				new DicomTagProcessTask() { DicomTag = "0010,1010" },	// Added to sample, AS
+				new DicomTagProcessTask() { DicomTag = "0010,21C0" },	// Added to sample, US 0001
+
+				new DicomTagProcessTask() { DicomTag = "0018,1000" },	// Add to sample, LO (retired tag, per LEADTOOLS)
 
 				new DicomTagProcessTask() { DicomTag = "0020,0010" },
-				new DicomTagProcessTask() { DicomTag = "0029,1009" },
-				new DicomTagProcessTask() { DicomTag = "0029,1019" },
-				new DicomTagProcessTask() { DicomTag = "0040,0244" },
-				new DicomTagProcessTask() { DicomTag = "0040,0245" },
-				new DicomTagProcessTask() { DicomTag = "0020,0052" },
 				// Tags that need to be redacted
 				new DicomTagProcessTask() { DicomTag = "0020,000D", ProcessAction = DicomTagProcessAction.Redact },
 				new DicomTagProcessTask() { DicomTag = "0020,000E", ProcessAction = DicomTagProcessAction.Redact },
 
+				new DicomTagProcessTask() { DicomTag = "0020,0052" },
+
+				new DicomTagProcessTask() { DicomTag = "0029,1009" },
+				new DicomTagProcessTask() { DicomTag = "0029,1019" },
+
+				new DicomTagProcessTask() { DicomTag = "0032,1032" },
+				new DicomTagProcessTask() { DicomTag = "0032,1064" },
+
+				new DicomTagProcessTask() { DicomTag = "0040,0007" },	// Added to sample, LO
+				new DicomTagProcessTask() { DicomTag = "0040,0244" },
+				new DicomTagProcessTask() { DicomTag = "0040,0245" },
+				new DicomTagProcessTask() { DicomTag = "0040,0253" },
+				new DicomTagProcessTask() { DicomTag = "0040,0275" },	// Unable to add to sample
 				// TODO: Confirm? This does not seem like PHI?
 				new DicomTagProcessTask() { DicomTag = "0040,1001", ProcessAction = DicomTagProcessAction.Ignore },
 			};
