@@ -57,7 +57,10 @@ namespace Function_01
 			if (DicomStream == null) throw new ArgumentNullException(nameof(DicomStream));
 			if (!DicomStream.CanSeek) throw new InvalidOperationException("Stream must support seeking.");
 
-			TableClient idMapTable = GetTableFromStorageAccount(blobUriBuilder, "dicomdeid");
+			// Fixed storage account for dicomdeid table
+			Uri DeidTableUri = new Uri($"https://{Environment.GetEnvironmentVariable("deidTableStorageAccountName")}.table.core.windows.net");
+			TableClient idMapTable = new TableClient(DeidTableUri, "dicomdeid", _credential);
+			// Each institution gets its own UID map table
 			TableClient uidMapTable = GetTableFromStorageAccount(blobUriBuilder, "dicomuidmap");
 
 			if (idMapTable == null) throw new ArgumentNullException(nameof(idMapTable));

@@ -389,7 +389,16 @@ namespace DicomLib
 			if (string.IsNullOrWhiteSpace(RedactedUid))
 			{
 				RedactedUid = DicomHelper.GenerateNewUid();
-				_uidMapProvider.SetRedactedUid(dicomTag, originalUid, RedactedUid, institutionId);
+				try
+				{
+					_uidMapProvider.SetRedactedUid(dicomTag, originalUid, RedactedUid, institutionId);
+				}
+				catch (Azure.RequestFailedException ex) when (ex.Status == 409)
+				{
+					// Possible concurrency issue, another thread created the same Azure Table entry
+					// Try retrieving again
+					RedactedUid = _uidMapProvider.GetRedactedUid(dicomTag, originalUid);
+				}
 			}
 
 			return RedactedUid;
