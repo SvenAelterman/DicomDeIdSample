@@ -167,7 +167,7 @@ namespace DicomLib
 			{
 				// TODO: Handle TM?
 				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
-				_writer.Write("Unable to handle TM");
+				_writer?.Write("Unable to handle TM");
 			}
 			else if (DicomVR.SQ.Code.Equals(valueRepresentation.Code))
 			{
@@ -190,13 +190,13 @@ namespace DicomLib
 			{
 				// TODO: Handle DS (Decimal String)?
 				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
-				_writer.Write("Unable to handle DS");
+				_writer?.Write("Unable to handle DS");
 			}
 			else if (DicomVR.IS.Code.Equals(valueRepresentation.Code))
 			{
 				// TODO: Handle IS (Integer String)?
 				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
-				_writer.Write("Unable to handle IS");
+				_writer?.Write("Unable to handle IS");
 			}
 			else if (DicomVR.US.Code.Equals(valueRepresentation.Code))
 			{
@@ -207,7 +207,7 @@ namespace DicomLib
 			{
 				// TODO: Handle OW (Other Word string)?
 				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
-				_writer.Write("Unable to handle OW");
+				_writer?.Write("Unable to handle OW");
 			}
 			else if (DicomVR.AS.Code.Equals(valueRepresentation.Code))
 			{
@@ -235,7 +235,7 @@ namespace DicomLib
 			{
 				// Can't handle "Unknown"
 				//throw new InvalidOperationException($"Handling VR '{valueRepresentation.Code}' is not implemented in this library.");
-				_writer.Write("Unable to handle UN");
+				_writer?.Write("Unable to handle UN");
 			}
 			else
 			{

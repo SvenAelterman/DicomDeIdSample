@@ -19,11 +19,9 @@ namespace Function_01
 		/// <summary>
 		/// Processes the tags in the DICOM file provided by the EventGridTrigger and attempts to remove identifying information.
 		/// </summary>
-		/// <param name="eventGridEvent"></param>
-		/// <param name="inStream">The input DICOM file from the Blob storage.</param>
-		/// <param name="idMapTable">The Azure Table containing between patient medical record number and study ID.</param>
-		/// <param name="uidMapTable">The Azure Table containing the map of UIDs.</param>
-		/// <param name="log"></param>
+		/// <param name="eventGridEvent">The event that triggered this function.</param>
+		/// <param name="log">The logging destination, an instance of Microsoft.Extensions.Logging.ILogger.</param>
+		/// <param name="exCtx">The Azure Function runtime's execution context.</param>
 		[FunctionName("DicomDeIdFx")]
 		public static void Run(
 			[EventGridTrigger] EventGridEvent eventGridEvent,
