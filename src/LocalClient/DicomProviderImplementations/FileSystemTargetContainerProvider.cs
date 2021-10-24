@@ -14,10 +14,11 @@ namespace LocalClient
 
 		public void Write(string fileName, Stream contents)
 		{
-			// Ensure the output path exists
-			Directory.CreateDirectory(_outputPath);
-
+			// Create the full file path
 			string filePath = Path.Join(_outputPath, fileName);
+
+			// Ensure the output path exists
+			Directory.CreateDirectory(Directory.GetParent(filePath).FullName);
 
 			// TODO: Persist
 			FileStream fs = new FileStream(filePath, FileMode.Create);

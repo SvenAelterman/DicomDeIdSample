@@ -6,10 +6,10 @@ namespace LocalClient
 {
 	internal class FileSystemSourceContainerProvider : ISourceContainerProvider
 	{
-		private string _path;
-		private bool _pathIsDirectory = false;
+		private readonly string _path;
+		private readonly bool _pathIsDirectory = false;
 		private int _counter = 0;
-		private string[] _files;
+		private readonly string[] _files;
 
 		public bool AtEnd { get { return !_pathIsDirectory || _counter >= _files.Length; } }
 
@@ -55,7 +55,7 @@ namespace LocalClient
 		private DicomSourceFile ReadFile(string filePath)
 		{
 			return new DicomSourceFile(
-						Path.GetFileName(filePath),
+						Path.GetRelativePath(_path, filePath),
 						new MemoryStream(File.ReadAllBytes(filePath)));
 		}
 	}

@@ -40,6 +40,9 @@
     <None Update="TestFiles\Subject1\img0001-28.9063 - id2 - Copy.dcm">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="TestFiles\Subject1\Study\Series\MRBRAIN.DCM">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="TestFiles\Subject2\img0001-28.9063 - id2.dcm">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
