@@ -15,7 +15,7 @@ namespace LocalClient
 		{
 			string IdMapCsvPath;
 			string DicomSourcePath;
-			// Assume the CSV path is the first argument
+			// Assume the CSV path is the first argument and the path to the DICOM source files is the second argument
 			int IdMapCsvArgIndex = 0,
 				DicomSourceArgIndex = 1;
 

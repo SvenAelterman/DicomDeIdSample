@@ -5,11 +5,6 @@ namespace LocalClient
 {
 	internal class UidMapLocatorEqualityComparer : EqualityComparer<UidMapLocator>
 	{
-		public UidMapLocatorEqualityComparer()
-		{
-
-		}
-
 		public override bool Equals([AllowNull] UidMapLocator x, [AllowNull] UidMapLocator y)
 		{
 			if (x == null && y == null)

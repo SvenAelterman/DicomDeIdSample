@@ -1,7 +1,10 @@
-﻿using DicomLib;
+﻿using CsvHelper;
+using DicomLib;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace LocalClient
 {
@@ -9,31 +12,38 @@ namespace LocalClient
 	{
 		public const string DefaultFileName = "uidmap.csv";
 		private readonly string _csvFileName;
-		//private readonly IList<UidMapEntity> _uids;
-		//private readonly Dictionary<UidMapLocator, UidMapEntity> _uidsD;
-		private readonly IDictionary<UidMapLocator, UidMapEntity> _uidsM;
+		private readonly IDictionary<UidMapLocator, UidMapEntity> _uids;
 
 		public CsvUidMapProvider(string csvPath)
 		{
-			_csvFileName = Path.Join(csvPath, DefaultFileName);
-			_uidsM = ReadCsv(_csvFileName);
+			_csvFileName = csvPath;
+			_uids = ReadCsv(_csvFileName);
+		}
+
+		public async Task WriteCSvAsync()
+		{
+			using (var Writer = new StreamWriter(_csvFileName))
+			using (var Csv = new CsvWriter(Writer, CultureInfo.CurrentUICulture))
+			{
+				Csv.Context.RegisterClassMap<UidMapEntityCsvHelperMap>();
+
+				await Csv.WriteRecordsAsync(_uids.Values);
+			}
 		}
 
 		private IDictionary<UidMapLocator, UidMapEntity> ReadCsv(string csvFileName)
 		{
 			if (File.Exists(csvFileName))
 			{
-				return File.ReadAllLines(csvFileName)
-					.Select(line => line.Split(','))
-					.Select(x => new UidMapEntity()
-					{
-						PartitionKey = x[0],    // DicomTag
-						RowKey = x[1],          // Original UID
-						RedactedUid = x[2],
-						InstitutionId = x[3]
-					})
-					.ToDictionary(k => new UidMapLocator(k.PartitionKey, k.RowKey),
-						new UidMapLocatorEqualityComparer());
+				using (var reader = new StreamReader(csvFileName))
+				using (var Csv = new CsvReader(reader, CultureInfo.CurrentUICulture))
+				{
+					Csv.Context.RegisterClassMap<UidMapEntityCsvHelperMap>();
+
+					return Csv.GetRecords<UidMapEntity>()
+						.ToDictionary(k => new UidMapLocator(k.PartitionKey, k.RowKey),
+							new UidMapLocatorEqualityComparer());
+				}
 			}
 			else
 			{
@@ -46,25 +56,25 @@ namespace LocalClient
 		{
 			UidMapLocator Locator = new UidMapLocator(dicomTag, originalUid);
 
-			if (_uidsM.ContainsKey(Locator))
-				return _uidsM[Locator].RedactedUid;
+			if (_uids.ContainsKey(Locator))
+				return _uids[Locator].RedactedUid;
 			else
 				return null;
 		}
 
 		public void SetRedactedUid(string dicomTag, string originalUid, string redactedUid, string institutionId)
 		{
-			// TODO: Async persist CSV
-
 			UidMapLocator Locator = new UidMapLocator(dicomTag, originalUid);
 
-			if (!_uidsM.ContainsKey(Locator))
+			if (!_uids.ContainsKey(Locator))
 			{
-				_uidsM.Add(Locator, new UidMapEntity(dicomTag, originalUid, redactedUid, institutionId));
+				_uids.Add(Locator, new UidMapEntity(dicomTag, originalUid, redactedUid, institutionId));
+
+				Task _ = WriteCSvAsync();
 			}
 			else
 			{
-				UidMapEntity Existing = _uidsM[Locator];
+				UidMapEntity Existing = _uids[Locator];
 
 				if (!Existing.RedactedUid.Equals(redactedUid))
 					throw new UidConsistencyException();
