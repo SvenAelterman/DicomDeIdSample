@@ -64,7 +64,7 @@ namespace LocalClient
 				}
 			}
 
-			string UidMapCsvPath = Path.Join(FullSourcePath, CsvUidMapProvider.FileName);
+			string UidMapCsvPath = Path.Join(FullSourcePath, CsvUidMapProvider.DefaultFileName);
 
 			if (!File.Exists(UidMapCsvPath))
 			{
@@ -77,7 +77,7 @@ namespace LocalClient
 
 			IIdMapProvider idmap = new CsvIdMapProvider(IdMapCsvPath);
 			// Assume the UID map will be in the same folder as the CSV files
-			IUidMapProvider uidmap = new CsvUidMapProvider(DicomSourcePath);
+			IUidMapProvider uidmap = new CsvUidMapProvider(UidMapCsvPath);
 			ISourceContainerProvider sourceFiles = new FileSystemSourceContainerProvider(FullSourcePath);
 
 			string OutputDirectoryName = $"{new DirectoryInfo(FullSourcePath).Name}-Output";
@@ -96,12 +96,12 @@ namespace LocalClient
 			DicomSourceFile CurrentDicom;
 			IList<DicomTagProcessTask> TagProcessList = DicomHelper.GetDefaultTags();
 
+			IDicomLib lib = new FODicomWrapper(uidMapProvider, CsvIdMapProvider.DefaultPartitionKey, null);
+
 			while (!sourceContainerProvider.AtEnd)
 			{
 				CurrentDicom = sourceContainerProvider.ReadNext();
 				WriteLine($"Processing DICOM file '{CurrentDicom.FileName}'");
-
-				IDicomLib lib = new FODicomWrapper(uidMapProvider, CsvIdMapProvider.DefaultPartitionKey, null);
 
 				string CurrentPatientId = lib.GetPatientId(CurrentDicom.Contents);
 				string NewPatientId = idMapProvider.GetStudyId(CsvIdMapProvider.DefaultPartitionKey, CurrentPatientId);

@@ -393,6 +393,7 @@ namespace DicomLib
 				{
 					_uidMapProvider.SetRedactedUid(dicomTag, originalUid, RedactedUid, institutionId);
 				}
+				// TODO: Relies on Azure. Needs custom exception type to be thrown by implementers
 				catch (Azure.RequestFailedException ex) when (ex.Status == 409)
 				{
 					// Possible concurrency issue, another thread created the same Azure Table entry

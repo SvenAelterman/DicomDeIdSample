@@ -8,7 +8,14 @@ namespace DicomLib
 	{
 		public UidMapEntity() { }
 
-		public UidMapEntity(string partitionKey, string rowKey, string redactedUid, string institutionId)
+		/// <summary>
+		/// Creates a new instance of the <see cref="UidMapEntity"/> class with the specified values.
+		/// </summary>
+		/// <param name="partitionKey">The DICOM tag to which this mapping applies.</param>
+		/// <param name="rowKey">The original UID to which this mapping applies.</param>
+		/// <param name="redactedUid">The redacted UID value.</param>
+		/// <param name="institutionId">(optional) The institution ID to which this mapping applies.</param>
+		public UidMapEntity(string partitionKey, string rowKey, string redactedUid, string institutionId = null)
 		{
 			PartitionKey = partitionKey;
 			RowKey = rowKey;
@@ -25,5 +32,17 @@ namespace DicomLib
 		public ETag ETag { get; set; }
 		public string RedactedUid { get; set; }
 		public string InstitutionId { get; set; }
+
+		public string DicomTag
+		{
+			get { return PartitionKey; }
+			set { PartitionKey = value; }
+		}
+
+		public string OriginalUid
+		{
+			get { return RowKey; }
+			set { RowKey = value; }
+		}
 	}
 }
