@@ -4,9 +4,18 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>$(DefineConstants);TRACE</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>$(DefineConstants);TRACE</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Azure.AI.TextAnalytics" Version="5.1.0-beta.7" />
     <PackageReference Include="Azure.Identity" Version="1.4.0" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.1.0" />
     <PackageReference Include="fo-dicom.NetCore" Version="4.0.7" />
   </ItemGroup>
 
