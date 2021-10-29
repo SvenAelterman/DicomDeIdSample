@@ -41,7 +41,6 @@ namespace DicomLib
 			OutputTags(writer, df);
 
 			List<DicomTag> ToUpdate = new List<DicomTag>();
-			//List<DicomTag> ToTextAnalyzer = new List<DicomTag>();
 			List<TextDocumentInput> TextAnalysisDocuments = new List<TextDocumentInput>();
 
 			// Create the list of tags to be updated/replaced/cleared that are "person names"
@@ -50,10 +49,11 @@ namespace DicomLib
 			foreach (var fmi in df.Dataset.Where(ds => !Keep.Contains(ds.Tag)))
 			{
 
-				//if (!Keep.Contains(fmi.Tag))
-				//{
 				// TODO: How to limit the number of tags to send to TextAnalyzer?
-				//ToTextAnalyzer.Add(fmi.Tag);
+				DateTime d;
+				if (fmi.ValueRepresentation.Code == "DA")
+					d = df.Dataset.GetValue<DateTime>(fmi.Tag, 0);
+
 				if (df.Dataset.TryGetString(fmi.Tag, out string value) &&
 					!string.IsNullOrWhiteSpace(value))
 				{
@@ -62,8 +62,6 @@ namespace DicomLib
 
 					if (TextAnalysisDocuments.Count > 4) break;
 				}
-				//ToUpdate.Add(fmi.Tag);
-				//}
 			}
 
 			// TODO: svaelter: Make an app setting
@@ -88,6 +86,8 @@ namespace DicomLib
 				// TODO: Log original value, etc.
 				df.Dataset.AddOrUpdate(new DicomPersonName(tag, replaceValue));
 			}
+
+			// TODO: Assign patient identifier in 0010,0020
 
 			df.Dataset.Validate();
 
