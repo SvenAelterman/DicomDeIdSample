@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "LocalClient": {
+      "commandName": "Project",
+      "commandLineArgs": "TestFiles\\idmap.csv TestFiles"
+    }
+  }
+}
