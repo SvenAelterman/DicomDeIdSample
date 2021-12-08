@@ -56,7 +56,7 @@ namespace LocalClient
 
 				if (DicomSourceFiles.Length > 0)
 				{
-					WriteLine($"Found {DicomSourceFiles.Length} DICOM sources file(s)");
+					WriteLine($"Found {DicomSourceFiles.Length} DICOM source file(s)");
 				}
 				else
 				{
