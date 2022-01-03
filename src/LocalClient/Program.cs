@@ -1,6 +1,5 @@
 ﻿using DicomLib;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace LocalClient
@@ -94,7 +93,7 @@ namespace LocalClient
 			ISourceContainerProvider sourceContainerProvider, ITargetContainerProvider target)
 		{
 			DicomSourceFile CurrentDicom;
-			IList<DicomTagProcessTask> TagProcessList = DicomHelper.GetDefaultTags();
+			//IList<DicomTagProcessTask> TagProcessList = DicomHelper.GetDefaultTags();
 
 			IDicomLib lib = new FODicomWrapper(uidMapProvider, CsvIdMapProvider.DefaultPartitionKey, null);
 
@@ -106,11 +105,10 @@ namespace LocalClient
 				string CurrentPatientId = lib.GetPatientId(CurrentDicom.Contents);
 				string NewPatientId = idMapProvider.GetStudyId(CsvIdMapProvider.DefaultPartitionKey, CurrentPatientId);
 
-				Stream ModifiedContents = lib.ProcessTags(CurrentDicom.Contents, null, TagProcessList);
-				ModifiedContents = lib.SetPatientId(ModifiedContents, NewPatientId, null);
+				//Stream ModifiedContents = lib.ProcessTags(CurrentDicom.Contents, null, TagProcessList);
+				Stream ModifiedContents = lib.SetPatientId(CurrentDicom.Contents, NewPatientId, null);
 
-				string FileName = CurrentDicom.FileName;
-				target.Write(FileName, ModifiedContents);
+				target.Write(CurrentDicom.FileName, ModifiedContents);
 			}
 		}
 
