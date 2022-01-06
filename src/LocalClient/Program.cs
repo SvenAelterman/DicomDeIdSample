@@ -1,11 +1,14 @@
 ﻿using DicomLib;
 using System;
 using System.IO;
+using System.Reflection;
 
 namespace LocalClient
 {
 	internal class Program
 	{
+		private static StreamWriter _LogFile;
+
 		/// <summary>
 		/// Main execution.
 		/// </summary>
@@ -74,6 +77,12 @@ namespace LocalClient
 				WriteLine($"Found UID map CSV file at '{UidMapCsvPath}'");
 			}
 
+			_LogFile = new StreamWriter(new FileStream(FullSourcePath + "/DicomProcess.log", FileMode.Append, FileAccess.Write));
+
+			_LogFile.WriteLine($"# Date: {DateTime.UtcNow:u}");
+			_LogFile.WriteLine("# Version: 1.0");
+			_LogFile.WriteLine($"# Software: DICOM LocalClient {Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}");
+
 			IIdMapProvider idmap = new CsvIdMapProvider(IdMapCsvPath);
 			// Assume the UID map will be in the same folder as the CSV files
 			IUidMapProvider uidmap = new CsvUidMapProvider(UidMapCsvPath);
@@ -85,6 +94,7 @@ namespace LocalClient
 			ProcessDicomFiles(idmap, uidmap, sourceFiles, target);
 
 			WriteLine("Done!");
+			_LogFile.Close();
 
 			return 0;
 		}
@@ -106,9 +116,19 @@ namespace LocalClient
 				string NewPatientId = idMapProvider.GetStudyId(CsvIdMapProvider.DefaultPartitionKey, CurrentPatientId);
 
 				//Stream ModifiedContents = lib.ProcessTags(CurrentDicom.Contents, null, TagProcessList);
-				Stream ModifiedContents = lib.SetPatientId(CurrentDicom.Contents, NewPatientId, null);
 
-				target.Write(CurrentDicom.FileName, ModifiedContents);
+				try
+				{
+					Stream ModifiedContents = lib.SetPatientId(CurrentDicom.Contents, NewPatientId, null);
+
+					target.Write(CurrentDicom.FileName, ModifiedContents);
+				}
+				catch (WrappedDicomValidationException ex)
+				{
+					string Message = $"Unable to set Study ID: '{ex.Message}'";
+					WriteLine(Message, MessageType.Error);
+					_LogFile.WriteLine($"{DateTime.UtcNow:u}\t[ERROR]\t[File: '{CurrentDicom.FileName}']\t{Message}");
+				}
 			}
 		}
 

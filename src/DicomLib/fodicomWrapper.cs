@@ -362,7 +362,16 @@ namespace DicomLib
 
 			df.Dataset.AddOrUpdate(PatientIdTag, newPatientId);
 			Stream OutStream = new MemoryStream();
-			df.Dataset.Validate();
+
+			try
+			{
+				df.Dataset.Validate();
+			}
+			catch (DicomValidationException ex)
+			{
+				throw new WrappedDicomValidationException(ex.Message, ex);
+			}
+
 			df.Save(OutStream);
 
 			OutputDicomTags(writer, df.Dataset, new List<DicomTag>() { PatientIdTag }, header: "AFTER SETTING ID");
