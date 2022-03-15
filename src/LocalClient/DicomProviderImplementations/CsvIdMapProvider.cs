@@ -1,4 +1,5 @@
 ﻿using DicomLib;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -6,13 +7,14 @@ namespace LocalClient
 {
 	internal class CsvIdMapProvider : IIdMapProvider
 	{
-		private readonly IList<IdMapEntity> _idMapEntities;
 		public const string DefaultPartitionKey = "local";
 
 		public CsvIdMapProvider(string csvFileName)
 		{
-			_idMapEntities = ReadCsv(csvFileName);
+			IdMap = ReadCsv(csvFileName);
 		}
+
+		public IList<IdMapEntity> IdMap { get; }
 
 		/// <summary>
 		/// Reads the specified CSV file and returns a list of <see cref="DicomLib.IdMapEntity"/>.
@@ -22,6 +24,8 @@ namespace LocalClient
 		private IList<IdMapEntity> ReadCsv(string csvFileName)
 		{
 			return System.IO.File.ReadAllLines(csvFileName)
+				// Allow for comments
+				.Where(line => !line.StartsWith('#'))
 				.Select(line => line.Split(','))
 				.Select(x => new IdMapEntity()
 				{
@@ -34,10 +38,17 @@ namespace LocalClient
 
 		public string GetStudyId(string _, string currentPatientID)
 		{
-			return _idMapEntities
-				.Single(e => e.PartitionKey == DefaultPartitionKey
-					&& e.RowKey == currentPatientID)
-				.StudyId;
+			try
+			{
+				return IdMap
+					.Single(e => e.PartitionKey == DefaultPartitionKey
+						&& e.RowKey == currentPatientID)
+					.StudyId;
+			}
+			catch (InvalidOperationException ex) when (ex.Message.Contains("no matching element"))
+			{
+				throw new MissingPatientIdInIdMapException($"The ID map does not contain an entry for patient ID '{currentPatientID}'.", ex);
+			}
 		}
 	}
 }
